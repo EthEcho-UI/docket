@@ -1,5 +1,5 @@
 /* Docket service worker: offline app shell, cached fonts/libraries, push reminders */
-const VERSION = 'docket-v1';
+const VERSION = 'docket-v2';
 const RUNTIME = 'docket-runtime';
 const PUSH_SERVER = '__PUSH_SERVER__';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/favicon-32.png', './icons/badge-96.png'];
@@ -61,6 +61,16 @@ self.addEventListener('push', e => {
     await Promise.all(items.map(i => self.registration.showNotification(i.title, {
       body: i.body, tag: i.tag, renotify: true, icon: 'icons/icon-192.png', badge: 'icons/badge-96.png', vibrate: [200, 100, 200], data: {url: './'}
     })));
+  })());
+});
+
+/* the browser renewed this device's push registration: register again and move the schedule over */
+self.addEventListener('pushsubscriptionchange', e => {
+  e.waitUntil((async () => {
+    const old = e.oldSubscription, key = old && old.options && old.options.applicationServerKey;
+    if (!key || !PUSH_SERVER.startsWith('https://')) return;
+    const sub = e.newSubscription || await self.registration.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: key});
+    await fetch(PUSH_SERVER + '/move', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({endpoint: old.endpoint, to: sub.endpoint})}).catch(() => {});
   })());
 });
 

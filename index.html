@@ -454,6 +454,47 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 .due-row input[type=time]{width:auto;flex:0 1 130px}
 .prio-pick .fchip{height:34px}
 
+/* calendar */
+.cal-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:2px;padding:0 0 10px;background:var(--sheet)}
+.cal-head b{min-width:150px;text-align:center;font:650 18px/1.2 var(--font-display);letter-spacing:-.01em}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.cal-wd{padding:2px 0 6px;text-align:center;font:600 10.5px/1 var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.cal-day{min-width:0;min-height:60px;display:flex;flex-direction:column;align-items:stretch;gap:3px;padding:4px 3px;border:0;border-radius:9px;background:var(--hover);color:var(--ink);text-align:left;cursor:pointer;overflow:hidden}
+.cal-day.out{opacity:.4}
+.cal-day.sel{box-shadow:inset 0 0 0 2px var(--accent)}
+.cal-num{align-self:flex-start;min-width:22px;height:22px;padding:0 5px;display:grid;place-items:center;border-radius:11px;font:600 12px/1 var(--font-mono)}
+.cal-day.today .cal-num{background:var(--accent);color:var(--accent-ink)}
+.cal-items{display:flex;flex-direction:column;gap:2px;min-width:0}
+.cal-items i{display:block;height:5px;border-radius:3px;background:var(--c);font-size:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-items i.done{opacity:.35}
+.cal-items b{font:600 9.5px/1 var(--font-mono);color:var(--muted)}
+.cal-dayhead{display:flex;align-items:center;gap:8px;margin:18px 0 4px}
+.cal-dayhead b{font:650 16px/1.25 var(--font-display)}
+.cal-row{display:flex;align-items:center;gap:8px;min-height:56px;border-bottom:1px solid var(--line)}
+.cal-row .check{margin:0 2px}
+.cal-row.done .t b{color:var(--muted);text-decoration:line-through}
+.cal-evdot{flex:none;width:12px;height:12px;margin:0 8px;border-radius:4px;background:var(--c)}
+.cal-open{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:8px 2px;border:0;background:none;color:var(--ink);text-align:left;font:inherit;cursor:pointer}
+.cal-time{flex:none;width:84px;font:500 12.5px/1.25 var(--font-mono);color:var(--muted)}
+.cal-open .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.cal-open b{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-open small{display:flex;align-items:center;gap:6px;font:500 12px/1.2 var(--font-mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (min-width:760px){
+  .sheet.cal{width:min(940px,calc(100vw - 48px))}
+  .cal-day{min-height:96px}
+  .cal-items i{height:auto;padding:1px 6px;border-radius:4px;background:color-mix(in srgb,var(--c) 16%,transparent);color:color-mix(in srgb,var(--c) 70%,var(--ink));font:500 11.5px/1.4 var(--font-ui)}
+  .cal-items i.ev{background:var(--c);color:#fff}
+}
+/* notification status */
+.health{list-style:none;margin:2px 0 4px;padding:0}
+.health li{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px;line-height:1.4}
+.health i{flex:none;width:10px;height:10px;margin-top:5px;border-radius:50%;background:var(--muted-2)}
+.health i.ok{background:var(--good)} .health i.warn{background:var(--warn)} .health i.bad{background:var(--danger)}
+.health b{flex:none;width:118px;font-weight:600}
+.health span{color:var(--ink-2)}
+.rem-add{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.rem-add .field{flex:1 1 170px;min-width:0}
+
 /* ---------- theme picker ---------- */
 .themes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 @media (min-width:520px){.themes{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -484,6 +525,7 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 <div id="app">
   <header class="top">
     <nav class="tabs" id="tabs" aria-label="Categories"></nav>
+    <button type="button" class="icon-btn top-btn" id="cal-btn" data-action="calendar" aria-label="Calendar"></button>
     <button type="button" class="icon-btn top-btn" id="time-btn" data-action="time" aria-label="Focus timer and work hours"></button>
     <button type="button" class="icon-btn" id="app-menu-btn" data-action="menu" aria-label="Settings and backup"></button>
   </header>
@@ -851,7 +893,7 @@ function normalize(s) {
   if (!s || !Array.isArray(s.categories) || !s.categories.length) throw new Error('No categories found');
   s.version = 2;
   s.settings = Object.assign({hideDone: false, autoMoveDone: true, theme: 'system', notify: false, workJob: null, workPeriod: 'week'}, s.settings || {});
-  s.settings.notifyPrefs = Object.assign({timer: true, due: true, dueTime: '09:00'}, s.settings.notifyPrefs || {});
+  s.settings.notifyPrefs = Object.assign({timer: true, due: true, events: true, dueTime: '09:00'}, s.settings.notifyPrefs || {});
   if (!/^\d{2}:\d{2}$/.test(s.settings.notifyPrefs.dueTime)) s.settings.notifyPrefs.dueTime = '09:00';
   if (!PERIODS.some(p => p[0] === s.settings.workPeriod)) s.settings.workPeriod = 'week';
   if (!(ACCENTS[s.settings.accent] || /^#[0-9a-f]{6}$/i.test(s.settings.accent || ''))) s.settings.accent = null;
@@ -861,6 +903,13 @@ function normalize(s) {
   if (!THEME_LIST.some(t => t[0] === s.settings.theme)) s.settings.theme = 'system';
   s.jobs = Array.isArray(s.jobs) ? s.jobs.filter(j => j && j.id).map(j => ({id: j.id, name: String(j.name || 'Job'), color: LABEL_KEYS.includes(j.color) ? j.color : 'ultra', rate: Number(j.rate) || 0, currency: String(j.currency || '')})) : [];
   const jobIds = new Set(s.jobs.map(j => j.id));
+  s.events = Array.isArray(s.events) ? s.events.filter(e => e && /^\d{4}-\d{2}-\d{2}$/.test(e.date)).map(e => ({id: e.id || uid(), title: String(e.title || 'Event'), date: e.date,
+    endDate: /^\d{4}-\d{2}-\d{2}$/.test(e.endDate || '') && e.endDate > e.date ? e.endDate : '', allDay: !!e.allDay,
+    start: /^\d{2}:\d{2}$/.test(e.start || '') ? e.start : '09:00', end: /^\d{2}:\d{2}$/.test(e.end || '') ? e.end : '',
+    color: LABEL_KEYS.includes(e.color) ? e.color : 'ultra', notes: String(e.notes || ''),
+    repeat: ['none', 'daily', 'weekly', 'monthly', 'yearly'].includes(e.repeat) ? e.repeat : 'none', remind: Number.isFinite(e.remind) ? e.remind : -1})) : [];
+  /* one-off reminders (made by you or the assistant); old ones are dropped after a week */
+  s.reminders = Array.isArray(s.reminders) ? s.reminders.filter(r => r && Number.isFinite(r.at) && r.at > Date.now() - 7 * 864e5).map(r => ({id: r.id || uid(), at: r.at, title: String(r.title || 'Reminder'), body: String(r.body || '')})) : [];
   s.entries = Array.isArray(s.entries) ? s.entries.filter(e => e && Number.isFinite(e.start)).map(e => ({id: e.id || uid(), jobId: jobIds.has(e.jobId) ? e.jobId : null, cardId: e.cardId || null, title: String(e.title || ''), start: e.start, end: Number.isFinite(e.end) ? e.end : null, note: String(e.note || ''), ...(e.undated && Number.isFinite(e.end) ? {undated: true} : {})})) : [];
   /* only one timer may run */
   let seen = false;
@@ -931,7 +980,7 @@ function saveLocal() {
     if (!saveWarned) { saveWarned = true; toast('This browser is blocking storage, so changes will be lost when you close the page.'); }
   }
 }
-function save() { state.savedAt = Date.now(); saveLocal(); fsPushSoon(); ghPushSoon(); pushSyncSoon(); }
+function save() { state.savedAt = Date.now(); saveLocal(); fsPushSoon(); ghPushSoon(); pushSyncSoon(); localSoon(); }
 
 const currentCat = () => state.categories.find(c => c.id === state.active) || state.categories[0];
 function findList(id) { for (const c of state.categories) { const l = c.lists.find(x => x.id === id); if (l) return {cat: c, list: l}; } return null; }
@@ -1068,7 +1117,7 @@ async function enableNotifications() {
   let p = Notification.permission;
   try { if (p === 'default') p = await Notification.requestPermission(); } catch (e) {}
   if (p !== 'granted') { toast('Notifications are blocked. Allow them in your browser’s site settings.'); return; }
-  state.settings.notify = true; save();
+  state.settings.notify = true; save(); scheduleLocal();
   if (!pushOn()) { toast('Notifications on while Docket is open'); return; }
   try { await pushSubscription(true); await pushSync(true); toast('Notifications on. Reminders arrive even when Docket is closed.'); }
   catch (e) { console.warn('Push subscription failed', e); toast('Notifications are on, but the reminder server couldn’t be reached. Docket will retry.'); }
@@ -1095,23 +1144,53 @@ async function pushPost(path, body) {
   return res.json();
 }
 function reminderItems() {
-  const items = [], now = Date.now(), n = state.settings.notifyPrefs, p = pr();
-  if (n.timer && p.endsAt && p.endsAt > now) {
+  const items = [], now = Date.now(), n = state.settings.notifyPrefs, p = pr(), horizon = now + 45 * 864e5;
+  const add = it => { if (it.at > now && it.at < horizon) items.push(it); };
+  if (n.timer && p.endsAt) {
     const next = p.phase === 'work' ? ((p.round + 1) % state.pomo.every === 0 ? 'long' : 'short') : 'work';
-    items.push({key: 'pomo', at: p.endsAt, tag: 'docket-timer', title: p.phase === 'work' ? 'Focus session done' : 'Break is over',
+    add({key: 'pomo', at: p.endsAt, tag: 'docket-timer', title: p.phase === 'work' ? 'Focus session done' : 'Break is over',
       body: p.phase === 'work' ? `Take a ${state.pomo[next]}-minute ${next === 'long' ? 'long ' : ''}break.` : 'Ready for the next focus session?'});
   }
   if (n.due) {
     const [hh, mm] = n.dueTime.split(':').map(Number);
     allCards(k => {
       if (k.done || !k.due) return;
-      const d = new Date(parseISO(k.due)); d.setHours(hh, mm, 0, 0);
-      const at = d.getTime();
-      if (at > now && at < now + 45 * 864e5) items.push({key: 'due:' + k.id, at, tag: 'due-' + k.id, title: 'Due today', body: k.title});
+      if (k.dueTime) add({key: 'due:' + k.id, at: dueAt(k), tag: 'due-' + k.id, title: `Due now · ${k.dueTime}`, body: k.title});
+      else { const d = new Date(parseISO(k.due)); d.setHours(hh, mm, 0, 0); add({key: 'due:' + k.id, at: d.getTime(), tag: 'due-' + k.id, title: 'Due today', body: k.title}); }
     });
   }
+  if (n.events) {
+    for (let i = 0; i <= 45; i++) {
+      const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i);
+      const key = dayKey(d.getTime());
+      state.events.forEach(ev => {
+        if (ev.remind < 0 || !occursOn(ev, key) || (ev.repeat === 'none' && key !== ev.date)) return;
+        const [h, m] = (ev.allDay ? '09:00' : ev.start).split(':').map(Number), start = new Date(d); start.setHours(h, m, 0, 0);
+        const when = ev.allDay ? (ev.remind >= 1440 ? 'Tomorrow, all day' : 'Today, all day') : `${ev.remind >= 1440 ? 'Tomorrow' : 'Today'} ${ev.start}${ev.end ? '–' + ev.end : ''}`;
+        add({key: `ev:${ev.id}:${key}`, at: start.getTime() - ev.remind * 6e4, tag: `ev-${ev.id}`, title: ev.title, body: when + (ev.notes ? ' · ' + ev.notes.slice(0, 80) : '')});
+      });
+    }
+  }
+  state.reminders.forEach(r => add({key: 'rem:' + r.id, at: r.at, tag: 'rem-' + r.id, title: r.title, body: r.body}));
   return items.sort((a, b) => a.at - b.at).slice(0, 100);
 }
+/* backup: while Docket is open, it fires the next day's reminders itself (same tags, so a push copy just replaces it) */
+let localTimers = [], localTimer = 0;
+const shownLocal = new Set();
+function scheduleLocal() {
+  localTimers.forEach(clearTimeout); localTimers = [];
+  if (notifStatus() !== 'on') return;
+  const now = Date.now();
+  reminderItems().filter(i => i.key !== 'pomo' && i.at - now < 864e5).forEach(i => localTimers.push(setTimeout(() => fireLocal(i), Math.max(0, i.at - now))));
+}
+function localSoon() { clearTimeout(localTimer); localTimer = setTimeout(scheduleLocal, 600); }
+setInterval(scheduleLocal, 30 * 60000);
+async function fireLocal(i) {
+  const id = i.key + '@' + i.at; if (shownLocal.has(id)) return; shownLocal.add(id);
+  haptic('alarm'); chime(); toast(`${i.title}: ${i.body}`);
+  try { const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (reg) await reg.showNotification(i.title, {body: i.body, tag: i.tag, renotify: true, icon: 'icons/icon-192.png', badge: 'icons/badge-96.png'}); } catch (e) {}
+}
+const pushState = {lastOk: 0, err: ''};
 let pushTimer = 0, lastPushSig = '';
 function pushSyncSoon() { if (!pushOn() || notifStatus() !== 'on') return; clearTimeout(pushTimer); pushTimer = setTimeout(() => pushSync(false), 1200); }
 async function pushSync(force) {
@@ -1120,30 +1199,73 @@ async function pushSync(force) {
     const items = reminderItems(), sig = JSON.stringify(items);
     if (!force && sig === lastPushSig) return;
     await pushPost('/sync', {endpoint: sub.endpoint, items});
-    lastPushSig = sig;
-  } catch (e) { console.warn('Reminder sync failed', e); }
+    lastPushSig = sig; pushState.lastOk = Date.now(); pushState.err = '';
+  } catch (e) { pushState.err = e.message; console.warn('Reminder sync failed', e); }
+}
+async function notifHealth() {
+  const rows = [], perm = 'Notification' in window ? Notification.permission : 'unsupported';
+  rows.push(['Permission', perm === 'granted' ? 'ok' : perm === 'denied' ? 'bad' : 'warn',
+    perm === 'granted' ? 'Allowed' : perm === 'denied' ? 'Blocked. Allow notifications for Docket in Android settings.' : perm === 'default' ? 'Not asked yet. Tap Fix.' : 'This browser can’t show notifications.']);
+  rows.push(['Turned on in Docket', state.settings.notify ? 'ok' : 'warn', state.settings.notify ? 'Yes' : 'No. Tap Fix.']);
+  if (!/^https:/.test(PUSH_SERVER)) rows.push(['While closed', 'warn', 'The push server isn’t set up yet, so reminders only arrive while Docket is open.']);
+  else if (!pushOn()) rows.push(['While closed', 'warn', 'Needs Docket opened from its https address (or installed).']);
+  else {
+    let reach = false; try { reach = (await fetch(PUSH_SERVER + '/', {cache: 'no-store'})).ok; } catch (e) {}
+    rows.push(['Push server', reach ? 'ok' : 'bad', reach ? 'Reachable' : 'Can’t reach it right now. Are you offline?']);
+    let sub = null; try { sub = await pushSubscription(false); } catch (e) {}
+    rows.push(['This device', sub ? 'ok' : 'warn', sub ? 'Registered for reminders while closed' : 'Not registered. Tap Fix.']);
+    rows.push(['Schedule', pushState.lastOk ? 'ok' : pushState.err ? 'bad' : 'warn', pushState.lastOk ? `Sent to the server ${fmtStamp(pushState.lastOk)}` : pushState.err ? 'Last attempt failed: ' + pushState.err : 'Not sent yet. Tap Fix.']);
+  }
+  const next = reminderItems()[0];
+  rows.push(['Next reminder', next ? 'ok' : 'none', next ? `${next.title} · ${fmtStamp(next.at)}` : 'Nothing scheduled']);
+  return rows;
 }
 function openNotifSheet() {
   openSheet(inner => {
+    let health = null;
     const draw = () => {
       const ns = notifStatus(), n = state.settings.notifyPrefs, on = ns === 'on';
+      const rems = state.reminders.slice().sort((a, b) => a.at - b.at);
+      const needsFix = health && health.some(r => r[1] === 'bad' || r[1] === 'warn');
       inner.innerHTML = `<h2 class="sheet-title sheet-drag">Notifications</h2>`
         + `<div class="toggle"><span>Notifications<small>${NOTIF_TEXT[ns]}${on && pushOn() ? ' · also when Docket is closed' : ''}</small></span>`
         + (ns === 'unavailable' || ns === 'blocked' ? '' : `<button type="button" class="btn sm${on ? '' : ' primary'}" data-x="toggle">${on ? 'Turn off' : 'Turn on'}</button>`) + `</div>`
+        + `<div class="sec-head"><h3>Status</h3>${needsFix ? `<button type="button" class="btn sm primary" data-x="fix">Fix</button>` : ''}</div>`
+        + (health ? `<ul class="health">${health.map(([k, st, txt]) => `<li><i class="${st}"></i><b>${k}</b><span>${esc(txt)}</span></li>`).join('')}</ul>` : `<p class="sheet-hint">Checking…</p>`)
+        + `<div class="sec-head"><h3>Remind me about</h3></div>`
         + `<label class="toggle"><span>Focus timer<small>When a focus session or break ends</small></span><input type="checkbox" data-np="timer"${n.timer ? ' checked' : ''}${on ? '' : ' disabled'}><span class="switch"></span></label>`
-        + `<label class="toggle"><span>Due dates<small>On the morning a card is due</small></span><input type="checkbox" data-np="due"${n.due ? ' checked' : ''}${on ? '' : ' disabled'}><span class="switch"></span></label>`
-        + `<div class="toggle"><span><label for="np-time">Reminder time</label><small>For due dates</small></span><input id="np-time" type="time" class="field" style="width:auto" value="${n.dueTime}"${on && n.due ? '' : ' disabled'}></div>`
+        + `<label class="toggle"><span>Due cards<small>At the due time, or in the morning if a card has no time</small></span><input type="checkbox" data-np="due"${n.due ? ' checked' : ''}${on ? '' : ' disabled'}><span class="switch"></span></label>`
+        + `<div class="toggle"><span><label for="np-time">Morning reminder</label><small>For cards due without a time</small></span><input id="np-time" type="time" class="field" style="width:auto" value="${n.dueTime}"${on && n.due ? '' : ' disabled'}></div>`
+        + `<label class="toggle"><span>Calendar events<small>Using each event’s own reminder</small></span><input type="checkbox" data-np="events"${n.events ? ' checked' : ''}${on ? '' : ' disabled'}><span class="switch"></span></label>`
+        + `<div class="sec-head"><h3>One-off reminders</h3></div>`
+        + (rems.length ? rems.map(r => `<div class="task-row"><div class="entry" style="cursor:default"><span class="t"><b>${esc(r.title)}</b><small>${fmtStamp(r.at)}${r.at < Date.now() ? ' · sent' : ''}${r.body ? ' · ' + esc(r.body) : ''}</small></span></div><button type="button" class="icon-btn sm" data-rm="${r.id}" aria-label="Delete reminder">${icon('x')}</button></div>`).join('') : '')
+        + `<form class="rem-add" data-form="rem" novalidate><input id="rem-text" class="field" placeholder="Remind me to…" maxlength="120" autocomplete="off"><input id="rem-at" type="datetime-local" class="field"><button type="submit" class="btn">${icon('bell')}Add</button></form>`
         + (on && pushOn() ? `<div class="sheet-actions" style="justify-content:flex-start"><button type="button" class="btn" data-x="test">Send a test notification</button></div>` : '')
-        + `<p class="sheet-hint">${ns === 'blocked' ? 'Notifications are blocked for Docket. Allow them in Android Settings → Apps → Docket (or your browser’s site settings).' : pushOn() ? 'Reminders come from Docket’s push server, so they arrive even when the app is closed. If they’re late, turn off battery optimisation for Docket in Android settings.' : 'Reminders only arrive while Docket is open here. Install Docket from its web address for reminders while it’s closed.'}</p>`;
+        + `<p class="sheet-hint">If reminders arrive late, turn off battery optimisation for Docket (or Chrome) in Android settings.</p>`;
     };
-    draw();
+    const check = async () => { health = await notifHealth(); if (inner.isConnected) draw(); };
+    draw(); check();
+    inner.addEventListener('submit', e => {
+      if (!e.target.matches('[data-form="rem"]')) return;
+      e.preventDefault();
+      const text = $('#rem-text', inner).value.trim(), at = new Date($('#rem-at', inner).value).getTime();
+      if (!text || !(at > Date.now())) { toast('Write what to remind you about and pick a time in the future.'); return; }
+      state.reminders.push({id: uid(), at, title: text, body: ''});
+      haptic('success'); save(); toast(`Reminder set for ${fmtStamp(at)}`);
+      if (notifStatus() !== 'on') toast('Reminder saved. Turn on notifications so it can reach you.');
+      check();
+    });
     inner.addEventListener('click', async e => {
+      const rm = e.target.closest('[data-rm]');
+      if (rm) { state.reminders = state.reminders.filter(r => r.id !== rm.dataset.rm); save(); draw(); return; }
       const x = e.target.closest('[data-x]'); if (!x) return;
-      if (x.dataset.x === 'toggle') { if (notifStatus() === 'on') await disableNotifications(); else await enableNotifications(); draw(); }
+      if (x.dataset.x === 'toggle') { if (notifStatus() === 'on') await disableNotifications(); else await enableNotifications(); }
+      else if (x.dataset.x === 'fix') { await enableNotifications(); if (pushOn()) await pushSync(true); scheduleLocal(); }
       else if (x.dataset.x === 'test') {
         try { const sub = await pushSubscription(true); const r = await pushPost('/test', {endpoint: sub.endpoint}); toast(r.ok ? 'Test sent. It should arrive in a few seconds.' : 'The push service refused the test (' + r.status + ').'); }
         catch (err) { toast('Couldn’t reach the reminder server. Check your connection.'); }
       }
+      check();
     });
     inner.addEventListener('change', e => {
       const t = e.target, n = state.settings.notifyPrefs;
@@ -1152,14 +1274,14 @@ function openNotifSheet() {
     });
   }, {cls: 'compact'});
 }
-async function notify(title, body) {
+async function notify(title, body, tag = 'docket-timer') {
   haptic('alarm');
   chime();
   toast(`${title} ${body}`);
   if (notifStatus() !== 'on') return;
   try {
     const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
-    if (reg) { await reg.showNotification(title, {body, tag: 'docket-timer', renotify: true}); return; }
+    if (reg) { await reg.showNotification(title, {body, tag, renotify: true, icon: 'icons/icon-192.png', badge: 'icons/badge-96.png'}); return; }
   } catch (e) {}
   try { new Notification(title, {body, tag: 'docket-timer'}); } catch (e) { /* Android needs a service worker: arrives with the installable version */ }
 }
@@ -1203,6 +1325,7 @@ const boardEl = $('#board');
 const dockEl = $('#dock');
 $('#app-menu-btn').innerHTML = icon('dotsV');
 $('#time-btn').innerHTML = icon('timer');
+$('#cal-btn').innerHTML = icon('cal');
 
 let themeApplied = false;
 function applyTheme() {
@@ -1461,6 +1584,7 @@ document.addEventListener('click', e => {
       break;
     case 'menu': appMenu(a); break;
     case 'time': openTimePanel(); break;
+    case 'calendar': openCalendar(); break;
     case 'open-focus': openTimePanel('focus'); break;
     case 'open-hours': openTimePanel('hours'); break;
     case 'pomo-toggle': haptic('tap'); pomoToggle(); if (timeDraw) timeDraw(); break;
@@ -1522,6 +1646,7 @@ document.addEventListener('keydown', e => {
   if (!sheet && !menu && !e.ctrlKey && !e.metaKey && !e.altKey && !(t.closest && t.closest('input, textarea, select, [contenteditable]'))) {
     if (e.key === 'n' || e.key === 'N') { const l = currentCat().lists.find(x => !x.collapsed); if (l) { e.preventDefault(); startComposer(l.id); } return; }
     if (e.key === 't' || e.key === 'T') { e.preventDefault(); openTimePanel(); return; }
+    if (e.key === 'c' || e.key === 'C') { e.preventDefault(); openCalendar(); return; }
   }
   if (e.key === 'Enter' && t.classList && t.classList.contains('card') && boardEl.contains(t)) { if (t.dataset.card) openCard(t.dataset.card); else if (t.dataset.task) openTaskSheet(t.dataset.task); }
 });
@@ -3403,6 +3528,165 @@ function openTagEditor(id, back) {
   }, {cls: 'compact'});
 }
 
+/* ================= calendar: due cards + events ================= */
+const REPEATS = [['none', 'Does not repeat'], ['daily', 'Every day'], ['weekly', 'Every week'], ['monthly', 'Every month'], ['yearly', 'Every year']];
+const REMINDS = [[-1, 'No reminder'], [0, 'At the start'], [5, '5 minutes before'], [10, '10 minutes before'], [30, '30 minutes before'], [60, '1 hour before'], [1440, '1 day before']];
+function occursOn(ev, key) {
+  if (key < ev.date) return false;
+  if (ev.repeat === 'none') return key <= (ev.endDate || ev.date);
+  const a = new Date(parseISO(ev.date)), b = new Date(parseISO(key));
+  if (ev.repeat === 'daily') return true;
+  if (ev.repeat === 'weekly') return a.getDay() === b.getDay();
+  if (ev.repeat === 'monthly') return a.getDate() === b.getDate();
+  return a.getDate() === b.getDate() && a.getMonth() === b.getMonth();
+}
+/* everything on one day: events and cards due that day, all-day items first */
+function itemsOn(key) {
+  const out = [];
+  state.events.forEach(ev => { if (occursOn(ev, key)) out.push({kind: 'event', id: ev.id, title: ev.title, allDay: ev.allDay, time: ev.allDay ? '' : ev.start, end: ev.allDay ? '' : ev.end, color: `var(--l-${ev.color})`, done: false, sub: ev.repeat !== 'none' ? REPEATS.find(r => r[0] === ev.repeat)[1] : ev.endDate ? `Until ${fmtDate(parseISO(ev.endDate))}` : ''}); });
+  state.categories.forEach(c => c.lists.forEach(l => l.cards.forEach(k => {
+    if (k.due === key) out.push({kind: 'card', id: k.id, title: k.title, allDay: !k.dueTime, time: k.dueTime, end: '', color: `var(--l-${c.color})`, done: k.done, prio: k.priority, sub: `${c.name} · ${l.title}`});
+  })));
+  return out.sort((a, b) => (b.allDay - a.allDay) || a.time.localeCompare(b.time) || (a.done - b.done));
+}
+const monthKey = ts => dayKey(ts).slice(0, 7);
+function calendarHTML() {
+  const [y, m] = ui.cal.month.split('-').map(Number), first = new Date(y, m - 1, 1), today = isoDay(0);
+  const startOffset = (first.getDay() + 6) % 7, gridStart = new Date(y, m - 1, 1 - startOffset);
+  const cells = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i), key = dayKey(d.getTime());
+    const items = itemsOn(key), inMonth = d.getMonth() === m - 1;
+    cells.push(`<button type="button" class="cal-day${inMonth ? '' : ' out'}${key === today ? ' today' : ''}${key === ui.cal.day ? ' sel' : ''}" data-day="${key}" aria-label="${fmtDay(key)}, ${items.length} items">`
+      + `<span class="cal-num">${d.getDate()}</span><span class="cal-items">`
+      + items.slice(0, 3).map(it => `<i class="${it.done ? 'done' : ''}${it.kind === 'event' ? ' ev' : ''}" style="--c:${it.color}">${esc(it.title)}</i>`).join('')
+      + (items.length > 3 ? `<b>+${items.length - 3}</b>` : '') + `</span></button>`);
+    if (i === 34 && new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + 35).getMonth() !== m - 1) break;
+  }
+  const dayItems = itemsOn(ui.cal.day);
+  const weekdays = Array.from({length: 7}, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(undefined, {weekday: 'short'}));
+  return `<div class="cal-head sheet-drag"><button type="button" class="icon-btn" data-c="prev" aria-label="Previous month">${icon('arrowL')}</button>`
+    + `<b>${first.toLocaleDateString(undefined, {month: 'long', year: 'numeric'})}</b>`
+    + `<button type="button" class="icon-btn" data-c="next" aria-label="Next month">${icon('arrowR')}</button><span class="grow"></span>`
+    + `<button type="button" class="btn sm" data-c="today">Today</button></div>`
+    + `<div class="cal-grid" role="grid">${weekdays.map(w => `<span class="cal-wd">${w}</span>`).join('')}${cells.join('')}</div>`
+    + `<div class="cal-dayhead"><b>${new Date(parseISO(ui.cal.day)).toLocaleDateString(undefined, {weekday: 'long', day: 'numeric', month: 'long'})}</b>`
+    + `<span class="grow"></span><button type="button" class="btn sm" data-c="add-task">${icon('plus')}Task</button><button type="button" class="btn sm primary" data-c="add-event">${icon('plus')}Event</button></div>`
+    + (dayItems.length ? dayItems.map(it => `<div class="cal-row${it.done ? ' done' : ''}">`
+        + (it.kind === 'card' ? `<button type="button" class="check${it.done ? ' on' : ''}" data-c="toggle" data-id="${it.id}" aria-label="${it.done ? 'Mark as not done' : 'Mark as done'}">${icon('check')}</button>` : `<span class="cal-evdot" style="--c:${it.color}"></span>`)
+        + `<button type="button" class="cal-open" data-c="open" data-kind="${it.kind}" data-id="${it.id}"><span class="cal-time">${it.allDay ? 'All day' : esc(it.time) + (it.end ? '–' + esc(it.end) : '')}</span>`
+        + `<span class="t"><b>${esc(it.title)}</b><small>${it.kind === 'card' ? `<span class="tab-dot" style="--c:${it.color}"></span>` : ''}${esc(it.sub || (it.kind === 'event' ? 'Event' : ''))}${it.prio ? ` · ${PRIORITY[it.prio].name}` : ''}</small></span></button></div>`).join('')
+      : `<p class="empty sm">Nothing on this day. Add a task or an event.</p>`);
+}
+function openCalendar(day) {
+  ui.cal = ui.cal || {};
+  ui.cal.day = day || ui.cal.day || isoDay(0);
+  ui.cal.month = ui.cal.day.slice(0, 7);
+  openSheet((inner, close) => {
+    const draw = () => { const st = inner.scrollTop; inner.innerHTML = calendarHTML(); inner.scrollTop = st; };
+    const back = () => openCalendar(ui.cal.day);
+    draw();
+    inner.addEventListener('click', e => {
+      const dayBtn = e.target.closest('[data-day]');
+      if (dayBtn) { ui.cal.day = dayBtn.dataset.day; if (ui.cal.day.slice(0, 7) !== ui.cal.month) ui.cal.month = ui.cal.day.slice(0, 7); haptic('select'); draw(); return; }
+      const b = e.target.closest('[data-c]'); if (!b) return;
+      const [y, m] = ui.cal.month.split('-').map(Number);
+      switch (b.dataset.c) {
+        case 'prev': case 'next': { const d = new Date(y, m - 1 + (b.dataset.c === 'next' ? 1 : -1), 1); ui.cal.month = monthKey(d.getTime()); ui.cal.day = ui.cal.month + '-01'; draw(); return; }
+        case 'today': ui.cal.day = isoDay(0); ui.cal.month = ui.cal.day.slice(0, 7); draw(); return;
+        case 'add-event': openEventEditor(null, {date: ui.cal.day, back}); return;
+        case 'add-task': openCalTaskSheet(ui.cal.day, back); return;
+        case 'toggle': { const f = findCard(b.dataset.id); if (f) { const moved = setDone(f.card, !f.card.done); commit(); if (moved) toast(moved); draw(); } return; }
+        case 'open': if (b.dataset.kind === 'card') { close(); openCard(b.dataset.id); } else openEventEditor(b.dataset.id, {back}); return;
+      }
+    });
+  }, {cls: 'tall cal'});
+}
+
+function openEventEditor(id, {date, back} = {}) {
+  const ex = id ? state.events.find(e => e.id === id) : null;
+  const ev = ex ? {...ex} : {id: uid(), title: '', date: date || isoDay(0), endDate: '', allDay: false, start: '09:00', end: '10:00', color: 'ultra', notes: '', repeat: 'none', remind: 10};
+  openSheet((inner, close) => {
+    inner.innerHTML = `<form novalidate><h2 class="sheet-title sheet-drag">${ex ? 'Edit event' : 'New event'}</h2><div class="form-grid">`
+      + `<div class="fld full"><label for="ev-title">Title</label><input id="ev-title" class="field" value="${esc(ev.title)}" maxlength="120" placeholder="e.g. Dentist, Team meeting" autocomplete="off"></div>`
+      + `<label class="toggle full"><span>All day</span><input type="checkbox" id="ev-allday"${ev.allDay ? ' checked' : ''}><span class="switch"></span></label>`
+      + `<div class="fld"><label for="ev-date">Date</label><input id="ev-date" type="date" class="field" value="${ev.date}"></div>`
+      + `<div class="fld" id="ev-enddate-wrap"${ev.allDay ? '' : ' hidden'}><label for="ev-enddate">Until (optional)</label><input id="ev-enddate" type="date" class="field" value="${ev.endDate}"></div>`
+      + `<div class="fld ev-times"${ev.allDay ? ' hidden' : ''}><label for="ev-start">Starts</label><input id="ev-start" type="time" class="field" value="${ev.start}"></div>`
+      + `<div class="fld ev-times"${ev.allDay ? ' hidden' : ''}><label for="ev-end">Ends</label><input id="ev-end" type="time" class="field" value="${ev.end}"></div>`
+      + `<div class="fld full"><span class="lbl">Color</span><div class="menu-swatches flat" role="group" aria-label="Color">${LABEL_KEYS.map(k => `<button type="button" class="swatch${k === ev.color ? ' on' : ''}" data-k="${k}" style="--c:var(--l-${k})" aria-label="${LABEL_NAME[k]}" aria-pressed="${k === ev.color}"></button>`).join('')}</div></div>`
+      + `<div class="fld"><label for="ev-repeat">Repeat</label><span class="select-wrap block"><select id="ev-repeat" class="select">${REPEATS.map(([k, n]) => `<option value="${k}"${k === ev.repeat ? ' selected' : ''}>${n}</option>`).join('')}</select></span></div>`
+      + `<div class="fld"><label for="ev-remind">Reminder</label><span class="select-wrap block"><select id="ev-remind" class="select">${REMINDS.map(([k, n]) => `<option value="${k}"${k === ev.remind ? ' selected' : ''}>${n}</option>`).join('')}</select></span></div>`
+      + `<div class="fld full"><label for="ev-notes">Notes</label><textarea id="ev-notes" class="field area" rows="3">${esc(ev.notes)}</textarea></div>`
+      + `</div><p class="sheet-hint" id="ev-msg" aria-live="polite">${'Notification' in window && notifStatus() !== 'on' ? 'Turn on notifications in Settings to get event reminders.' : ''}</p>`
+      + `<div class="sheet-actions">${ex ? `<button type="button" class="btn danger" data-x="del">${icon('trash')}Delete</button>` : ''}<span class="grow"></span><button type="button" class="btn" data-x="cancel">Cancel</button><button type="submit" class="btn primary">Save</button></div></form>`;
+    const done = () => { close(); if (back) back(); };
+    inner.addEventListener('change', e => {
+      if (e.target.id !== 'ev-allday') return;
+      const on = e.target.checked;
+      $$('.ev-times', inner).forEach(x => { x.hidden = on; }); $('#ev-enddate-wrap', inner).hidden = !on;
+    });
+    inner.addEventListener('click', e => {
+      const sw = e.target.closest('.swatch');
+      if (sw) { ev.color = sw.dataset.k; $$('.swatch', inner).forEach(s2 => { s2.classList.toggle('on', s2 === sw); s2.setAttribute('aria-pressed', String(s2 === sw)); }); return; }
+      const x = e.target.closest('[data-x]'); if (!x) return;
+      if (x.dataset.x === 'cancel') done();
+      else if (x.dataset.x === 'del') { close(); withUndo(`Deleted “${ex.title}”`, () => { state.events.splice(state.events.indexOf(ex), 1); }); if (back) back(); }
+    });
+    inner.querySelector('form').addEventListener('submit', e => {
+      e.preventDefault();
+      const msg = $('#ev-msg', inner);
+      const patch = {title: $('#ev-title', inner).value.replace(/\s+/g, ' ').trim(), allDay: $('#ev-allday', inner).checked, date: $('#ev-date', inner).value,
+        start: $('#ev-start', inner).value || '09:00', end: $('#ev-end', inner).value || '', color: ev.color, notes: $('#ev-notes', inner).value.trim(),
+        repeat: $('#ev-repeat', inner).value, remind: +$('#ev-remind', inner).value};
+      patch.endDate = patch.allDay && $('#ev-enddate', inner).value > patch.date ? $('#ev-enddate', inner).value : '';
+      if (!patch.title) { msg.textContent = 'Give the event a title.'; return; }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(patch.date)) { msg.textContent = 'Pick a date.'; return; }
+      if (!patch.allDay && patch.end && patch.end <= patch.start) { msg.textContent = 'The event has to end after it starts.'; return; }
+      if (ex) Object.assign(ex, patch); else state.events.push(Object.assign(ev, patch));
+      ui.cal = {day: patch.date, month: patch.date.slice(0, 7)};
+      haptic('success'); commit(); toast(ex ? 'Event saved' : 'Event added');
+      done();
+    });
+    if (!ex) $('#ev-title', inner).focus({preventScroll: true});
+  }, {cls: 'compact'});
+}
+
+function openCalTaskSheet(date, back) {
+  let catId = state.active, prio = 0;
+  openSheet((inner, close) => {
+    const listOptions = () => { const c = state.categories.find(x => x.id === catId) || currentCat(); const dl = doneListOf(c); return c.lists.filter(l => l !== dl).map(l => `<option value="${l.id}">${esc(l.title)}</option>`).join('') || '<option value="">(new list)</option>'; };
+    inner.innerHTML = `<form novalidate><h2 class="sheet-title sheet-drag">New task</h2><div class="form-grid">`
+      + `<div class="fld full"><label for="ct-title">Task</label><input id="ct-title" class="field" maxlength="300" placeholder="What needs doing?" autocomplete="off"></div>`
+      + `<div class="fld"><label for="ct-cat">Board</label><span class="select-wrap block"><select id="ct-cat" class="select">${state.categories.map(c => `<option value="${c.id}"${c.id === catId ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></span></div>`
+      + `<div class="fld"><label for="ct-list">List</label><span class="select-wrap block"><select id="ct-list" class="select">${listOptions()}</select></span></div>`
+      + `<div class="fld"><label for="ct-date">Due</label><input id="ct-date" type="date" class="field" value="${date}"></div>`
+      + `<div class="fld"><label for="ct-time">Time (optional)</label><input id="ct-time" type="time" class="field"></div>`
+      + `<div class="fld full"><span class="lbl">Priority</span><div class="chips wrap">${PRIORITY.map((p, i) => `<button type="button" class="fchip${i === 0 ? ' on' : ''}" data-p="${i}">${p ? `<span class="tab-dot" style="--c:var(--l-${p.c})"></span>${p.name}` : 'None'}</button>`).join('')}</div></div>`
+      + `</div><p class="sheet-hint" id="ct-msg" aria-live="polite">The task goes onto the board you pick and shows here on its due date.</p>`
+      + `<div class="sheet-actions"><button type="button" class="btn" data-x="cancel">Cancel</button><button type="submit" class="btn primary">Add task</button></div></form>`;
+    inner.addEventListener('change', e => { if (e.target.id === 'ct-cat') { catId = e.target.value; $('#ct-list', inner).innerHTML = listOptions(); } });
+    inner.addEventListener('click', e => {
+      const pb = e.target.closest('[data-p]');
+      if (pb) { prio = +pb.dataset.p; $$('[data-p]', inner).forEach(x => x.classList.toggle('on', x === pb)); return; }
+      if (e.target.closest('[data-x="cancel"]')) { close(); if (back) back(); }
+    });
+    inner.querySelector('form').addEventListener('submit', e => {
+      e.preventDefault();
+      const title = $('#ct-title', inner).value.replace(/\s+/g, ' ').trim();
+      if (!title) { $('#ct-msg', inner).textContent = 'Write what the task is.'; return; }
+      const c = state.categories.find(x => x.id === catId);
+      let l = findList($('#ct-list', inner).value); l = l ? l.list : null;
+      if (!l) { l = newList('To do'); c.lists.unshift(l); }
+      const due = $('#ct-date', inner).value;
+      l.cards.push(newCard(title, {due, dueTime: due ? $('#ct-time', inner).value : '', priority: prio}));
+      haptic('success'); commit(); toast(`Added to ${c.name} · ${l.title}`);
+      close(); if (back) back();
+    });
+    $('#ct-title', inner).focus({preventScroll: true});
+  }, {cls: 'compact'});
+}
+
 /* ================= copy a card to any list on any board ================= */
 function openCopySheet(cardId, back) {
   const f = findCard(cardId); if (!f) return;
@@ -3585,6 +3869,9 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 /* ================= boot ================= */
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 render();
+scheduleLocal();
+/* read-only hook for diagnostics and automated checks */
+window.docketDebug = {reminderItems: () => reminderItems(), health: () => notifHealth()};
 const activeTab = tabsEl.querySelector('.tab.is-active'); if (activeTab) activeTab.scrollIntoView({inline: 'nearest', block: 'nearest'});
 if (pr().endsAt) tick();
 fsInit();
