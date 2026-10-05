@@ -222,7 +222,7 @@ html.dragging,html.dragging *{cursor:grabbing!important}
 .sheet-hint{margin:10px 0 0;font-size:13px;line-height:1.45;color:var(--muted)}
 .sheet-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:10px;margin-top:18px}
 .sheet textarea.field.mono-box{font:12px/1.4 var(--font-mono);min-height:140px;margin-top:10px}
-@media (min-width:760px){
+@media (min-width:900px) and (hover:hover) and (pointer:fine){
   .sheet{left:50%;right:auto;bottom:auto;top:7vh;width:min(600px,calc(100vw - 48px));max-height:86vh;border-radius:18px;opacity:0;transform:translate(-50%,14px);transition:transform .22s cubic-bezier(.2,.85,.25,1),opacity .18s}
   .sheet.in{opacity:1;transform:translate(-50%,0)}
   .sheet.compact{width:min(460px,calc(100vw - 48px));top:12vh}
@@ -479,7 +479,7 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 .cal-open .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
 .cal-open b{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cal-open small{display:flex;align-items:center;gap:6px;font:500 12px/1.2 var(--font-mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-@media (min-width:760px){
+@media (min-width:900px) and (hover:hover) and (pointer:fine){
   .sheet.cal{width:min(940px,calc(100vw - 48px))}
   .cal-day{min-height:96px}
   .cal-items i{height:auto;padding:1px 6px;border-radius:4px;background:color-mix(in srgb,var(--c) 16%,transparent);color:color-mix(in srgb,var(--c) 70%,var(--ink));font:500 11.5px/1.4 var(--font-ui)}
@@ -514,7 +514,7 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 .ai-form{position:sticky;bottom:calc(-20px - env(safe-area-inset-bottom,0px));display:flex;align-items:flex-end;gap:8px;margin:0 -18px;padding:10px 18px calc(12px + env(safe-area-inset-bottom,0px));background:var(--sheet);border-top:1px solid var(--line)}
 .ai-form .field{flex:1;min-width:0;max-height:140px;resize:none}
 .ai-form .btn{height:46px;width:52px;padding:0}
-@media (min-width:760px){.ai-form{margin:0 -24px;padding:10px 24px 14px;bottom:-24px}}
+@media (min-width:900px) and (hover:hover) and (pointer:fine){.ai-form{margin:0 -24px;padding:10px 24px 14px;bottom:-24px}}
 
 .key-ok{display:inline-grid;color:var(--good)}
 .fchip.on .key-ok{color:inherit}
@@ -535,10 +535,46 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 .tp-dot{position:absolute!important;right:9px;bottom:9px;width:18px;height:18px;border-radius:50%;background:var(--accent)}
 .tn{padding:0 4px 2px;font:600 14px/1.2 var(--font-ui)}
 
-@media (min-width:760px){
+@media (min-width:900px) and (hover:hover) and (pointer:fine){
   :root{--col-w:290px}
   .board{padding-inline:20px;scroll-padding-inline:20px;scroll-snap-type:none}
 }
+@media (min-width:900px) and (hover:hover) and (pointer:fine){
+  .sheet{top:5vh;max-height:90vh}
+  .sheet.tall{height:88vh}
+  .sheet.card-sheet{width:min(1000px,calc(100vw - 64px))}
+  .cs-cols{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:0 36px;align-items:start}
+  .cs-cols>.cs-side>.cs-sec:first-child,.cs-cols>.cs-main>.cs-sec:first-child{border-top:1px solid var(--line)}
+  .cs-main .field.area{min-height:180px}
+  .sheet.time,.sheet.cal{width:min(1240px,calc(100vw - 64px))}
+  .time-top .seg{max-width:520px}
+  .pomo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 56px;align-items:start;padding-top:12px}
+  .pomo>.pomo-ring{grid-column:1;grid-row:1;justify-self:center;width:min(320px,100%)}
+  .pomo>.pomo-ctrl{grid-column:1;grid-row:2;justify-self:center}
+  .pomo>.pomo-link{grid-column:2;grid-row:1}
+  .pomo>.pomo-set{grid-column:2;grid-row:2 / span 2}
+  .pomo-time{font-size:64px}
+  .desk-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 48px;align-items:start}
+  .desk-cols>div>.sec-head:first-child{margin-top:6px}
+  .tiles{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .cal-wrap{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:0 32px;align-items:start}
+  .cal-wrap .cal-dayhead{margin-top:2px}
+  .cal-side{position:sticky;top:52px;max-height:calc(88vh - 120px);overflow:auto}
+  .cal-day{min-height:104px}
+  .sheet.theme-sheet{width:min(900px,calc(100vw - 64px))}
+  .themes{grid-template-columns:repeat(4,minmax(0,1fr))}
+  #ai-btn{display:none}
+  .ai-fab{display:grid}
+}
+/* assistant: floating button + docked chat window (desktop only) */
+.ai-fab{display:none;position:fixed;right:24px;bottom:24px;z-index:32;width:58px;height:58px;place-items:center;border:0;border-radius:50%;background:var(--accent);color:var(--accent-ink);box-shadow:var(--shadow-lift);cursor:pointer;transition:transform .15s}
+.ai-fab:hover{transform:scale(1.06)}
+.ai-fab .ic{width:26px;height:26px}
+.ai-fab.hide{display:none!important}
+.ai-dock{position:fixed;right:24px;bottom:24px;z-index:36;width:min(420px,calc(100vw - 48px));height:min(640px,calc(100vh - 96px));display:flex;flex-direction:column;background:var(--sheet);color:var(--ink);border-radius:18px;box-shadow:var(--shadow-lift);opacity:0;transform:translateY(12px) scale(.98);transform-origin:bottom right;transition:opacity .18s,transform .18s}
+.ai-dock.in{opacity:1;transform:none}
+.ai-dock .sheet-inner{padding:14px 18px 0;overflow-y:auto;flex:1;min-height:0}
+.ai-dock .ai-form{bottom:0;margin:0 -18px;padding:10px 18px 14px}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{transition-duration:0s!important;animation-duration:0s!important}
 }
@@ -558,6 +594,7 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
   <main class="board" id="board" aria-label="Lists"></main>
 </div>
 <div class="dock" id="dock" hidden></div>
+<button type="button" class="ai-fab" id="ai-fab" data-action="assistant" aria-label="AI assistant" title="AI assistant (A)"></button>
 <div id="layer"></div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
@@ -593,7 +630,8 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const uid = () => Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-4);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
-const wide = matchMedia('(min-width: 760px)');
+/* desktop layout only on a big screen with a mouse or trackpad; phones (any size or rotation) keep the phone layout */
+const wide = matchMedia('(min-width: 900px) and (hover: hover) and (pointer: fine)');
 const moveItem = (arr, from, to) => { const [x] = arr.splice(from, 1); arr.splice(to, 0, x); };
 const pad = n => String(n).padStart(2, '0');
 
@@ -1355,6 +1393,7 @@ $('#app-menu-btn').innerHTML = icon('dotsV');
 $('#time-btn').innerHTML = icon('timer');
 $('#cal-btn').innerHTML = icon('cal');
 $('#ai-btn').innerHTML = icon('sparkle');
+$('#ai-fab').innerHTML = icon('sparkle');
 
 let themeApplied = false;
 function applyTheme() {
@@ -1671,7 +1710,7 @@ document.addEventListener('keydown', e => {
     else if (e.key === 'Escape') { ui.addingList = false; renderBoard(); }
     return;
   }
-  if (e.key === 'Escape') { if (menu) closeMenu(); else if (sheet) closeSheet(); return; }
+  if (e.key === 'Escape') { if (menu) closeMenu(); else if (sheet) closeSheet(); else if (aiDock) closeAiDock(); return; }
   /* keyboard shortcuts on a computer: N = new card in the first open list, T = timer panel */
   if (!sheet && !menu && !e.ctrlKey && !e.metaKey && !e.altKey && !(t.closest && t.closest('input, textarea, select, [contenteditable]'))) {
     if (e.key === 'n' || e.key === 'N') { const l = currentCat().lists.find(x => !x.collapsed); if (l) { e.preventDefault(); startComposer(l.id); } return; }
@@ -1929,6 +1968,18 @@ function endDrag() {
   d.ghost.classList.add('settling');
   d.ghost.style.transform = `translate3d(${r.left}px, ${r.top}px, 0)`;
   setTimeout(finish, 170);
+}
+
+/* desktop helper: move a run of nodes into a two-column grid (left = before `split`, right = from `split`) */
+function deskColumns(container, firstNode, split) {
+  if (!wide.matches || !firstNode || !split || !container.contains(split)) return;
+  const wrap = document.createElement('div'); wrap.className = 'desk-cols';
+  const left = document.createElement('div'), right = document.createElement('div');
+  firstNode.before(wrap);
+  let n = firstNode;
+  while (n && n !== split) { const next = n.nextSibling; left.appendChild(n); n = next; }
+  while (n) { const next = n.nextSibling; right.appendChild(n); n = next; }
+  wrap.append(left, right);
 }
 
 /* ================= sheets ================= */
@@ -2195,6 +2246,7 @@ function appMenu(anchor) {
 /* ================= theme picker ================= */
 function openThemeSheet() {
   openSheet(inner => {
+    inner.closest('.sheet').classList.add('theme-sheet');
     inner.addEventListener('input', e => { if (e.target.id === 'acc-custom') { state.settings.accent = e.target.value; applyAccent(); } });
     inner.addEventListener('change', e => { if (e.target.id === 'acc-custom') { state.settings.accent = e.target.value; commit(); draw(); } });
     const draw = () => {
@@ -2918,6 +2970,11 @@ function openTimePanel(tab) {
           `<button type="button" role="tab" aria-selected="${ui.timeTab === k}" class="${ui.timeTab === k ? 'on' : ''}" data-t="tab" data-k="${k}">${n}</button>`).join('')
         + `</div></div>`
         + (ui.timeTab === 'focus' ? focusHTML() : ui.timeTab === 'hours' ? hoursHTML() : statsHTML());
+      if (wide.matches) {
+        const top = $('.time-top', inner), heads = $$(':scope > .sec-head', inner);
+        if (ui.timeTab === 'hours' && heads.length > 1) deskColumns(inner, top.nextSibling, heads[1]);
+        if (ui.timeTab === 'stats' && heads.length > 1) { const tiles = $('.tiles', inner); deskColumns(inner, tiles ? tiles.nextSibling : heads[0], heads.find(h => /Earned|By job/.test(h.textContent)) || heads[1]); }
+      }
       inner.scrollTop = st;
     };
     timeDraw = draw; draw();
@@ -2996,7 +3053,7 @@ function openTimePanel(tab) {
       } else if (t.dataset.pt) { state.pomo[t.dataset.pt] = t.checked; haptic('select'); save(); }
       else if (t.id === 'hrs-from' || t.id === 'hrs-to') { ui.hours[t.id === 'hrs-from' ? 'from' : 'to'] = t.value; draw(); }
     });
-  }, {cls: 'tall', onClose: () => { timeDraw = null; }});
+  }, {cls: 'tall time', onClose: () => { timeDraw = null; }});
 }
 
 function openTaskSheet(key) {
@@ -3615,7 +3672,16 @@ function openCalendar(day) {
   ui.cal.day = day || ui.cal.day || isoDay(0);
   ui.cal.month = ui.cal.day.slice(0, 7);
   openSheet((inner, close) => {
-    const draw = () => { const st = inner.scrollTop; inner.innerHTML = calendarHTML(); inner.scrollTop = st; };
+    const draw = () => {
+      const st = inner.scrollTop; inner.innerHTML = calendarHTML();
+      if (wide.matches) {
+        const grid = $('.cal-grid', inner), side = document.createElement('div'), wrap = document.createElement('div');
+        side.className = 'cal-side'; wrap.className = 'cal-wrap';
+        let n = $('.cal-dayhead', inner); while (n) { const next = n.nextSibling; side.appendChild(n); n = next; }
+        grid.before(wrap); wrap.append(grid, side);
+      }
+      inner.scrollTop = st;
+    };
     const back = () => openCalendar(ui.cal.day);
     draw();
     inner.addEventListener('click', e => {
@@ -4004,13 +4070,40 @@ async function aiSend(text, redraw) {
 }
 const aiFormat = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/^[-*] (.+)$/gm, '• $1').replace(/\n/g, '<br>');
 
-function openAssistant() {
-  openSheet(inner => {
+/* every time the assistant is opened it starts a new chat (pass {keep: true} to return to the current one) */
+let aiDock = null;
+function openAssistant(opts = {}) {
+  if (!opts.keep) { aiChat.messages = []; aiChat.log = []; aiChat.undo = null; aiSaveChat(); }
+  if (wide.matches) { openAiDock(); return; }
+  closeAiDock();
+  openSheet(inner => mountAssistant(inner, () => closeSheet()), {cls: 'tall'});
+}
+function openAiDock() {
+  closeAiDock();
+  const el = document.createElement('div');
+  el.className = 'ai-dock'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'AI assistant');
+  el.innerHTML = '<div class="sheet-inner"></div>';
+  document.body.appendChild(el);
+  aiDock = el;
+  $('#ai-fab').classList.add('hide');
+  mountAssistant(el.firstChild, closeAiDock, true);
+  requestAnimationFrame(() => el.classList.add('in'));
+  const ta = $('#ai-input', el); if (ta) ta.focus({preventScroll: true});
+}
+function closeAiDock() {
+  if (!aiDock) return;
+  aiDock.remove(); aiDock = null;
+  $('#ai-fab').classList.remove('hide');
+}
+function mountAssistant(inner, close, docked) {
+  {
     const draw = () => {
-      const keep = $('#ai-input', inner) ? $('#ai-input', inner).value : '';
+      const keepEl = docked ? $('#ai-input', inner.parentNode) : $('#ai-input', inner), keep = keepEl ? keepEl.value : '';
+      if (docked) { const old = $(':scope > .ai-form', inner.parentNode); if (old) old.remove(); }
       const last = aiChat.log.length - 1;
       inner.innerHTML = `<div class="ai-top sheet-drag"><b>${icon('sparkle')}Assistant</b><small class="mono muted">${aiReady() ? esc(aiModel()) : ''}</small><span class="grow"></span>`
-        + (aiChat.log.length ? `<button type="button" class="btn sm" data-x="clear">New chat</button>` : '') + `<button type="button" class="icon-btn" data-x="settings" aria-label="Assistant settings">${icon('dotsV')}</button></div>`
+        + (aiChat.log.length ? `<button type="button" class="btn sm" data-x="clear">New chat</button>` : '') + `<button type="button" class="icon-btn" data-x="settings" aria-label="Assistant settings">${icon('dotsV')}</button>`
+        + (docked ? `<button type="button" class="icon-btn" data-x="close" aria-label="Close assistant">${icon('x')}</button>` : '') + `</div>`
         + (!aiReady() ? `<div class="ai-empty"><p class="sheet-text">Connect an AI model to create tasks, write notes and checklists, plan your week and set reminders by just asking.</p><button type="button" class="btn primary" data-x="settings">Set up the assistant</button></div>`
           : `<div class="ai-log" id="ai-log">` + (aiChat.log.length ? aiChat.log.map((m, i) =>
               m.who === 'user' ? `<div class="ai-msg me">${aiFormat(m.text)}</div>`
@@ -4023,21 +4116,24 @@ function openAssistant() {
             + `<form class="ai-form" data-form="ai" novalidate><textarea id="ai-input" class="field" rows="1" placeholder="Ask or tell me what to do…" aria-label="Message the assistant"${AI.busy ? ' disabled' : ''}>${esc(keep)}</textarea>`
             + `<button type="submit" class="btn primary" aria-label="Send"${AI.busy ? ' disabled' : ''}>${icon('send')}</button></form>`);
       const log = $('#ai-log', inner); if (log) inner.scrollTop = inner.scrollHeight;
-      autosize($('#ai-input', inner));
+      if (docked) { const f = $('.ai-form', inner); if (f) inner.parentNode.appendChild(f); else { const old = $('.ai-dock > .ai-form'); if (old) old.remove(); } }
+      autosize($('#ai-input', docked ? inner.parentNode : inner));
     };
     draw();
-    const send = () => { const ta = $('#ai-input', inner); const v = ta ? ta.value.trim() : ''; if (!v) return; ta.value = ''; aiSend(v, draw); };
-    inner.addEventListener('submit', e => { if (e.target.matches('[data-form="ai"]')) { e.preventDefault(); send(); } });
-    inner.addEventListener('keydown', e => { if (e.target.id === 'ai-input' && e.key === 'Enter' && !e.shiftKey && !e.isComposing && wide.matches) { e.preventDefault(); send(); } });
-    inner.addEventListener('input', e => { if (e.target.id === 'ai-input') autosize(e.target); });
-    inner.addEventListener('click', e => {
-      const sg = e.target.closest('[data-sg]'); if (sg) { const ta = $('#ai-input', inner); ta.value = sg.dataset.sg; ta.focus(); return; }
+    const root = docked ? inner.parentNode : inner;
+    const send = () => { const ta = $('#ai-input', root); const v = ta ? ta.value.trim() : ''; if (!v) return; ta.value = ''; aiSend(v, draw); };
+    root.addEventListener('submit', e => { if (e.target.matches('[data-form="ai"]')) { e.preventDefault(); send(); } });
+    root.addEventListener('keydown', e => { if (e.target.id === 'ai-input' && e.key === 'Enter' && !e.shiftKey && !e.isComposing && wide.matches) { e.preventDefault(); send(); } });
+    root.addEventListener('input', e => { if (e.target.id === 'ai-input') autosize(e.target); });
+    root.addEventListener('click', e => {
+      const sg = e.target.closest('[data-sg]'); if (sg) { const ta = $('#ai-input', root); ta.value = sg.dataset.sg; ta.focus(); return; }
       const x = e.target.closest('[data-x]'); if (!x) return;
-      if (x.dataset.x === 'settings') openAISettings(() => openAssistant());
+      if (x.dataset.x === 'settings') { if (docked) close(); openAISettings(() => openAssistant({keep: true})); }
+      else if (x.dataset.x === 'close') close();
       else if (x.dataset.x === 'clear') { aiChat.messages = []; aiChat.log = []; aiChat.undo = null; aiSaveChat(); draw(); }
       else if (x.dataset.x === 'undo' && aiChat.undo) { state = normalize(JSON.parse(aiChat.undo)); aiChat.undo = null; commit(); aiChat.log.push({who: 'act', text: 'Undid the last changes'}); aiChat.messages.push({role: 'user', content: '(I undid all the changes you made in your last answer.)'}); aiSaveChat(); draw(); }
     });
-  }, {cls: 'tall'});
+  }
 }
 
 function openAISettings(back) {
@@ -4189,6 +4285,16 @@ function openCard(id) {
             + `<button type="button" class="icon-btn sm" data-cs="cl-del" data-i="${it.id}" aria-label="Remove item">${icon('x')}</button></li>`).join('') + `</ul>`
         + `<input id="cs-cl-add" class="field" placeholder="Add an item" enterkeyhint="enter" autocomplete="off" aria-label="Add checklist item"></section>`
         + `<footer class="cs-foot"><span class="mono muted">Added ${fmtDate(k.created, true)}</span><span class="grow"></span><button type="button" class="btn" data-cs="copy">${icon('copy')}Copy to…</button><button type="button" class="btn danger" data-cs="delete">${icon('trash')}Delete card</button></footer>`;
+      if (wide.matches) {
+        const secs = $$(':scope > .cs-sec', inner);
+        if (secs.length) {
+          const cols = document.createElement('div'), main = document.createElement('div'), side = document.createElement('div');
+          cols.className = 'cs-cols'; main.className = 'cs-main'; side.className = 'cs-side';
+          secs[0].before(cols);
+          secs.forEach(sec => ($('#cs-desc', sec) || $('#cs-cl-add', sec) ? main : side).appendChild(sec));
+          cols.append(main, side);
+        }
+      }
       inner.scrollTop = st;
       $$('textarea', inner).forEach(autosize);
     };
