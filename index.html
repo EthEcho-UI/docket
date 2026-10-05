@@ -443,6 +443,17 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 .steps{margin:0 0 14px;padding-left:20px;color:var(--ink-2);line-height:1.55}
 .steps a{color:var(--accent)}
 
+.chip.prio{color:color-mix(in srgb,var(--c) 75%,var(--ink));font-weight:600}
+.chip.prio .ic{color:var(--c)}
+.pin-star{position:absolute;top:7px;right:8px;color:var(--warn);display:grid}
+.pin-star .ic{width:14px;height:14px;fill:currentColor;stroke:none}
+.card.is-pinned .card-main{padding-right:14px}
+.star-btn.on{color:var(--warn)}
+.sort-ic{display:inline-grid;vertical-align:-2px;margin-right:4px;color:var(--muted)}
+.sort-ic .ic{width:12px;height:12px}
+.due-row input[type=time]{width:auto;flex:0 1 130px}
+.prio-pick .fchip{height:34px}
+
 /* ---------- theme picker ---------- */
 .themes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 @media (min-width:520px){.themes{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -552,6 +563,11 @@ const ICON = {
   briefcase: '<rect x="3.5" y="7.5" width="17" height="12" rx="2"/>' + P('M9 7.5V5.5h6v2M3.5 12.5h17'),
   sheet: '<rect x="4" y="4" width="16" height="16" rx="2"/>' + P('M4 9.5h16M4 14.5h16M10 4v16'),
   chevD: P('M7 10l5 5 5-5'),
+  flag: P('M6 21V4M6 4.5h11l-2.2 4 2.2 4H6'),
+  star: P('M12 3.6l2.6 5.2 5.8.9-4.2 4.1 1 5.7L12 16.8l-5.2 2.7 1-5.7-4.2-4.1 5.8-.9z'),
+  starFill: `<path d="M12 3.6l2.6 5.2 5.8.9-4.2 4.1 1 5.7L12 16.8l-5.2 2.7 1-5.7-4.2-4.1 5.8-.9z" ${F}/>`,
+  sort: P('M7 5v14M4 16l3 3 3-3M13 7h7M13 12h5M13 17h3'),
+  copy: '<rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2"/>' + P('M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5'),
   vibrate: '<rect x="8" y="4" width="8" height="16" rx="2"/>' + P('M4.5 9v6M19.5 9v6'),
   blank: ''
 };
@@ -769,7 +785,19 @@ const themeName = t => (THEME_LIST.find(x => x[0] === t) || THEME_LIST[0])[1];
 })();
 
 /* ================= state ================= */
-const newCard = (title, extra = {}) => Object.assign({id: uid(), title, desc: '', done: false, tags: [], due: '', checklist: [], created: Date.now()}, extra);
+const newCard = (title, extra = {}) => Object.assign({id: uid(), title, desc: '', done: false, tags: [], due: '', dueTime: '', priority: 0, pinned: false, checklist: [], created: Date.now()}, extra);
+const PRIORITY = [null, {name: 'Low', c: 'sky'}, {name: 'Medium', c: 'mustard'}, {name: 'High', c: 'rust'}, {name: 'Urgent', c: 'rose'}];
+const dueAt = k => k.due ? parseISO(k.due) + (k.dueTime ? (+k.dueTime.slice(0, 2) * 60 + +k.dueTime.slice(3)) * 6e4 : 864e5 - 1) : Infinity;
+/* order a column is shown in: pinned first, then the column's sort rule (manual keeps the dragged order) */
+function orderedCards(l, list) {
+  const idx = new Map(l.cards.map((k, i) => [k.id, i]));
+  return list.slice().sort((a, b) => (b.pinned - a.pinned)
+    || (l.sort === 'priority' ? (b.priority - a.priority) || (dueAt(a) - dueAt(b)) : l.sort === 'due' ? (dueAt(a) - dueAt(b)) || (b.priority - a.priority) : 0)
+    || idx.get(a.id) - idx.get(b.id));
+}
+/* deep copy with fresh ids (cards keep their content; time entries stay with the original) */
+const cloneCard = k => ({...JSON.parse(JSON.stringify(k)), id: uid(), created: Date.now(), checklist: k.checklist.map(i => ({...i, id: uid()})), fromList: undefined});
+const cloneList = l => ({...l, id: uid(), isDone: false, cards: l.cards.map(cloneCard)});
 const newList = (title, extra = {}) => Object.assign({id: uid(), title, collapsed: false, cards: []}, extra);
 const newCategory = (name, color) => ({id: uid(), name, color, labels: {}, lists: [newList('To do'), newList('Doing'), newList('Done')]});
 const POMO_DEFAULTS = {work: 25, short: 5, long: 15, every: 4, autoNext: false, sound: true};
@@ -859,11 +887,13 @@ function normalize(s) {
     if (c.jobId && !jobIds.has(c.jobId)) delete c.jobId;
     c.lists = Array.isArray(c.lists) ? c.lists : [];
     c.lists.forEach(l => {
-      l.id = l.id || uid(); l.title = String(l.title || 'Untitled'); l.collapsed = !!l.collapsed; l.isDone = !!l.isDone;
+      l.id = l.id || uid(); l.title = String(l.title || 'Untitled'); l.collapsed = !!l.collapsed; l.isDone = !!l.isDone; l.sort = ['manual', 'priority', 'due'].includes(l.sort) ? l.sort : 'manual';
       l.cards = Array.isArray(l.cards) ? l.cards : [];
       l.cards.forEach(k => {
         k.id = k.id || uid(); k.title = String(k.title || 'Untitled'); k.desc = String(k.desc || '');
         k.done = !!k.done; k.due = typeof k.due === 'string' ? k.due : '';
+        k.dueTime = /^\d{2}:\d{2}$/.test(k.dueTime || '') && k.due ? k.dueTime : '';
+        k.priority = [0, 1, 2, 3, 4].includes(k.priority) ? k.priority : 0; k.pinned = !!k.pinned;
         k.tags = Array.isArray(k.tags) ? k.tags.filter(id => tagIds.has(id)) : [];
         if (Array.isArray(k.labels)) {
           k.labels.filter(x => LABEL_KEYS.includes(x)).forEach(x => { const id = legacyTag(String(legacyNames[x] || '').trim(), x); if (!k.tags.includes(id)) k.tags.push(id); });
@@ -1211,13 +1241,14 @@ function cardHTML(c, k, r) {
   const tracked = cardTime(k.id);
   if (r && r.cardId === k.id) meta.push(`<span class="chip live"><span class="live-dot"></span><span data-since="${r.start}" data-base="${tracked}">${clock(tracked + Date.now() - r.start)}</span></span>`);
   else if (tracked) meta.push(`<span class="chip" title="Time tracked">${icon('clock')}${fmtHM(tracked)}</span>`);
-  if (k.due) { const d = dueInfo(k.due, k.done); if (d.text) meta.push(`<span class="chip ${d.cls}">${icon('cal')}${d.text}</span>`); }
+  if (k.priority) meta.unshift(`<span class="chip prio" style="--c:var(--l-${PRIORITY[k.priority].c})">${icon('flag')}${PRIORITY[k.priority].name}</span>`);
+  if (k.due) { const d = dueInfo(k.due, k.done); if (d.text) meta.push(`<span class="chip ${d.cls}">${icon('cal')}${d.text}${k.dueTime ? ' ' + k.dueTime : ''}</span>`); }
   if (k.checklist.length) {
     const n = k.checklist.filter(i => i.done).length;
     meta.push(`<span class="chip${n === k.checklist.length ? ' ok' : ''}">${icon('checklist')}${n}/${k.checklist.length}</span>`);
   }
   if (k.desc.trim()) meta.push(`<span class="chip" title="Has notes">${icon('notes')}</span>`);
-  return `<article class="card${k.done ? ' is-done' : ''}" data-card="${k.id}" tabindex="0">`
+  return `<article class="card${k.done ? ' is-done' : ''}${k.pinned ? ' is-pinned' : ''}" data-card="${k.id}" tabindex="0">` + (k.pinned ? `<span class="pin-star" title="Pinned">${icon('star')}</span>` : '')
     + (labs ? `<div class="card-labels">${labs}</div>` : '')
     + `<div class="card-main"><button type="button" class="check${k.done ? ' on' : ''}" data-action="toggle-done" aria-pressed="${k.done}" aria-label="${k.done ? 'Mark as not done' : 'Mark as done'}">${icon('check')}</button>`
     + `<div class="card-title">${esc(k.title)}</div></div>`
@@ -1233,7 +1264,7 @@ function listHTML(c, l, r) {
       + `${icon('expand')}<span class="list-count">${open}</span><span class="v-title">${esc(l.title)}</span></button>`
       + `<div class="cards" data-cards></div></section>`;
   }
-  const visible = state.settings.hideDone ? l.cards.filter(k => !k.done) : l.cards;
+  const visible = orderedCards(l, state.settings.hideDone ? l.cards.filter(k => !k.done) : l.cards);
   const hidden = l.cards.length - visible.length;
   const title = ui.renamingList === l.id
     ? `<input id="rename-list-input" class="list-title-input" data-rename="${l.id}" value="${esc(l.title)}" maxlength="80" enterkeyhint="done" autocomplete="off" aria-label="List name">`
@@ -1246,7 +1277,7 @@ function listHTML(c, l, r) {
     : `<footer class="list-foot"><button type="button" class="add-card" data-action="add-card">${icon('plus')}<span>Add card</span></button>`
       + (hidden ? `<button type="button" class="hidden-note" data-action="show-done">${hidden} done hidden</button>` : '') + `</footer>`;
   return `<section class="list" data-list="${l.id}">`
-    + `<header class="list-head" data-drag="list">${title}<span class="list-count" title="Open cards">${open}</span>`
+    + `<header class="list-head" data-drag="list">${title}<span class="list-count" title="Open cards">${l.sort !== 'manual' ? `<span class="sort-ic" title="Sorted by ${l.sort === 'due' ? 'due date' : 'priority'}">${icon(l.sort === 'due' ? 'cal' : 'flag')}</span>` : ''}${open}</span>`
     + `<button type="button" class="icon-btn" data-action="collapse" aria-label="Collapse ${esc(l.title)}">${icon('collapse')}</button>`
     + `<button type="button" class="icon-btn" data-action="list-menu" aria-label="${esc(l.title)} options">${icon('dotsH')}</button></header>`
     + `<div class="cards" data-cards>${visible.map(k => cardHTML(c, k, r)).join('')}</div>${foot}</section>`;
@@ -1947,6 +1978,19 @@ function listMenu(anchor, lid) {
     {label: 'Done column', hint: doneListOf(c) === l ? 'Finished cards go here' : 'Send finished cards here', icon: 'doneAll', checked: doneListOf(c) === l, onSelect: () => { const was = doneListOf(c) === l && l.isDone; c.lists.forEach(x => { x.isDone = false; }); if (!was) l.isDone = true; commit(); toast(was ? 'Done column follows the name again' : `Finished cards now go to ${l.title}`); }},
     {label: 'Move left', icon: 'arrowL', disabled: i === 0, onSelect: () => { moveItem(c.lists, i, i - 1); commit(); }},
     {label: 'Move right', icon: 'arrowR', disabled: i === c.lists.length - 1, onSelect: () => { moveItem(c.lists, i, i + 1); commit(); }},
+    {label: 'Sort cards', hint: {manual: 'Manually (drag)', priority: 'By priority', due: 'By due date'}[l.sort], icon: 'sort', onSelect: () => openMenu(anchor, [
+      {type: 'title', label: `Sort “${l.title}”`},
+      ...[['manual', 'Manually', 'Keep the order you drag them in'], ['priority', 'By priority', 'Urgent first, then by due date'], ['due', 'By due date', 'Soonest first, no date last']].map(([k, n, h]) =>
+        ({label: n, hint: h, checked: l.sort === k, onSelect: () => { l.sort = k; commit(); }})),
+      {type: 'sep'}, {type: 'title', label: 'Pinned cards always stay on top'}
+    ])},
+    {label: 'Copy list', icon: 'copy', onSelect: () => openMenu(anchor, [
+      {type: 'title', label: `Copy “${l.title}” to`},
+      ...state.categories.map(o => ({label: o === c ? `${o.name} (this board)` : o.name, dot: o.color, onSelect: () => {
+        const cp = cloneList(l); if (o === c) { cp.title = l.title + ' (copy)'; o.lists.splice(o.lists.indexOf(l) + 1, 0, cp); } else o.lists.push(cp);
+        commit(); toast(`Copied to ${o.name}`, o === c ? {} : {action: 'Open', onAction: () => { state.active = o.id; commit(); }});
+      }}))
+    ])},
     {label: 'Move to another category', icon: 'move', disabled: !others.length, onSelect: () => openMenu(anchor, [
       {type: 'title', label: `Move “${l.title}” to`},
       ...others.map(o => ({label: o.name, dot: o.color, onSelect: () => {
@@ -3359,6 +3403,28 @@ function openTagEditor(id, back) {
   }, {cls: 'compact'});
 }
 
+/* ================= copy a card to any list on any board ================= */
+function openCopySheet(cardId, back) {
+  const f = findCard(cardId); if (!f) return;
+  openSheet((inner, close) => {
+    inner.innerHTML = `<h2 class="sheet-title sheet-drag">Copy card</h2><p class="sheet-text">“${esc(f.card.title)}” with its notes, tags, checklist, priority and due date.</p>`
+      + `<div class="fld"><label for="cp-list" class="lbl">To list</label><span class="select-wrap block"><select id="cp-list" class="select">`
+      + state.categories.map(c => `<optgroup label="${esc(c.name)}">` + c.lists.map(l => `<option value="${l.id}"${l === f.list ? ' selected' : ''}>${esc(l.title)}</option>`).join('') + `</optgroup>`).join('')
+      + `</select></span></div><div class="sheet-actions"><button type="button" class="btn" data-x="cancel">Cancel</button><button type="button" class="btn primary" data-x="go">${icon('copy')}Copy</button></div>`;
+    inner.addEventListener('click', e => {
+      const x = e.target.closest('[data-x]'); if (!x) return;
+      if (x.dataset.x === 'cancel') { close(); if (back) back(); return; }
+      const to = findList($('#cp-list', inner).value), src = findCard(cardId); if (!to || !src) return;
+      const cp = cloneCard(src.card); cp.done = false; delete cp.fromList;
+      to.list.cards.splice(to.list === src.list ? src.index + 1 : to.list.cards.length, 0, cp);
+      if (to.list.collapsed) to.list.collapsed = false;
+      haptic('success'); commit(); close();
+      toast(`Copied to ${to.list.title}${to.cat !== src.cat ? ' in ' + to.cat.name : ''}`, to.cat !== currentCat() ? {action: 'Open', onAction: () => { state.active = to.cat.id; commit(); }} : {});
+      if (back) back();
+    });
+  }, {cls: 'compact'});
+}
+
 /* ================= card detail ================= */
 function openCard(id) {
   openSheet((inner, close) => {
@@ -3377,6 +3443,7 @@ function openCard(id) {
         `<div class="cs-head sheet-drag">`
         + `<button type="button" class="check big${k.done ? ' on' : ''}" data-cs="done" aria-pressed="${k.done}" aria-label="${k.done ? 'Mark as not done' : 'Mark as done'}">${icon('check')}</button>`
         + `<textarea id="cs-title" class="cs-title" rows="1" maxlength="300" aria-label="Card title" enterkeyhint="done">${esc(k.title)}</textarea>`
+        + `<button type="button" class="icon-btn star-btn${k.pinned ? ' on' : ''}" data-cs="pin" aria-pressed="${k.pinned}" aria-label="${k.pinned ? 'Unpin' : 'Pin to top'}" title="${k.pinned ? 'Unpin' : 'Pin to top of the column'}">${icon(k.pinned ? 'starFill' : 'star')}</button>`
         + `<button type="button" class="icon-btn" data-cs="close" aria-label="Close">${icon('x')}</button></div>`
         + `<div class="cs-where"><span class="tab-dot" style="--c:var(--l-${c.color})"></span><label for="cs-move" class="sr-only">List</label><span class="select-wrap"><select id="cs-move" class="select">`
         + state.categories.map(cc => `<optgroup label="${esc(cc.name)}">` + cc.lists.map(ll => `<option value="${ll.id}"${ll.id === l.id ? ' selected' : ''}>${esc(ll.title)}</option>`).join('') + `</optgroup>`).join('')
@@ -3393,8 +3460,11 @@ function openCard(id) {
         + `<section class="cs-sec"><div class="cs-sec-head"><h3>Tags</h3><button type="button" class="link" data-cs="tags">${k.tags.length ? 'Edit' : 'Add tags'}</button></div>`
         + (k.tags.length ? `<div class="tag-sel">${sortedTags(k.tags).map(t => `<button type="button" class="tag-pill" data-cs="tags" style="--c:var(--l-${t.color})"><i></i>${esc(tagLabel(t))}</button>`).join('')}</div>` : `<p class="sheet-hint" style="margin:0">No tags yet.</p>`)
         + `</section>`
-        + `<section class="cs-sec"><div class="cs-sec-head"><h3><label for="cs-due">Due date</label></h3>${k.due ? `<button type="button" class="link" data-cs="clear-due">Clear</button>` : ''}</div>`
-        + `<div class="due-row"><input type="date" id="cs-due" class="field" value="${esc(k.due)}">${due && due.text ? `<span class="chip ${due.cls}">${icon('cal')}${due.text}</span>` : ''}</div></section>`
+        + `<section class="cs-sec"><div class="cs-sec-head"><h3>Priority</h3></div><div class="chips wrap prio-pick" role="group" aria-label="Priority">`
+        + PRIORITY.map((pr, i) => `<button type="button" class="fchip${k.priority === i ? ' on' : ''}" data-cs="prio" data-p="${i}">${pr ? `<span class="tab-dot" style="--c:var(--l-${pr.c})"></span>${pr.name}` : 'None'}</button>`).join('') + `</div></section>`
+        + `<section class="cs-sec"><div class="cs-sec-head"><h3><label for="cs-due">Due</label></h3>${k.due ? `<button type="button" class="link" data-cs="clear-due">Clear</button>` : ''}</div>`
+        + `<div class="due-row"><input type="date" id="cs-due" class="field" value="${esc(k.due)}"><input type="time" id="cs-due-time" class="field" value="${esc(k.dueTime)}"${k.due ? '' : ' disabled'} aria-label="Due time (optional)" title="Time (optional)">${due && due.text ? `<span class="chip ${due.cls}">${icon('cal')}${due.text}${k.dueTime ? ' ' + k.dueTime : ''}</span>` : ''}</div>`
+        + `<p class="sheet-hint" style="margin-top:6px">The time is optional. Cards with a due date also show up in the calendar.</p></section>`
         + `<section class="cs-sec"><div class="cs-sec-head"><h3><label for="cs-desc">Notes</label></h3></div>`
         + `<textarea id="cs-desc" class="field area" rows="3" placeholder="Details, links, measurements">${esc(k.desc)}</textarea></section>`
         + `<section class="cs-sec"><div class="cs-sec-head"><h3>Checklist</h3>${tot ? `<span class="mono muted">${doneN}/${tot}</span>` : ''}</div>`
@@ -3404,7 +3474,7 @@ function openCard(id) {
             + `<input class="cl-text" data-cl="${it.id}" value="${esc(it.text)}" aria-label="Checklist item" enterkeyhint="done" autocomplete="off">`
             + `<button type="button" class="icon-btn sm" data-cs="cl-del" data-i="${it.id}" aria-label="Remove item">${icon('x')}</button></li>`).join('') + `</ul>`
         + `<input id="cs-cl-add" class="field" placeholder="Add an item" enterkeyhint="enter" autocomplete="off" aria-label="Add checklist item"></section>`
-        + `<footer class="cs-foot"><span class="mono muted">Added ${fmtDate(k.created, true)}</span><button type="button" class="btn danger" data-cs="delete">${icon('trash')}Delete card</button></footer>`;
+        + `<footer class="cs-foot"><span class="mono muted">Added ${fmtDate(k.created, true)}</span><span class="grow"></span><button type="button" class="btn" data-cs="copy">${icon('copy')}Copy to…</button><button type="button" class="btn danger" data-cs="delete">${icon('trash')}Delete card</button></footer>`;
       inner.scrollTop = st;
       $$('textarea', inner).forEach(autosize);
     };
@@ -3430,7 +3500,10 @@ function openCard(id) {
         case 'entry': openEntryEditor(b.dataset.e, {back}); return;
         case 'add-time': openEntryEditor(null, {cardId: id, back}); return;
         case 'tags': openTagPicker(id, back); return;
-        case 'clear-due': k.due = ''; break;
+        case 'clear-due': k.due = ''; k.dueTime = ''; break;
+        case 'pin': k.pinned = !k.pinned; haptic('select'); toast(k.pinned ? 'Pinned to the top of the column' : 'Unpinned'); break;
+        case 'prio': k.priority = +b.dataset.p; haptic('select'); break;
+        case 'copy': openCopySheet(id, back); return;
         case 'cl-toggle': { const it = k.checklist.find(i => i.id === b.dataset.i); if (it) { it.done = !it.done; haptic(it.done ? 'success' : 'select'); } break; }
         case 'cl-del': k.checklist = k.checklist.filter(i => i.id !== b.dataset.i); break;
         case 'delete': close(); withUndo('Card deleted', () => { const r = running(); if (r && r.cardId === k.id) stopTracking(); f.list.cards.splice(f.list.cards.indexOf(k), 1); }); return;
@@ -3449,7 +3522,8 @@ function openCard(id) {
     });
     inner.addEventListener('change', e => {
       const t = e.target, f = findCard(id); if (!f) return;
-      if (t.id === 'cs-due') { f.card.due = t.value; save(); scheduleRender(); draw(); }
+      if (t.id === 'cs-due') { f.card.due = t.value; if (!t.value) f.card.dueTime = ''; save(); scheduleRender(); draw(); }
+      else if (t.id === 'cs-due-time') { f.card.dueTime = f.card.due ? t.value : ''; save(); scheduleRender(); draw(); }
       else if (t.id === 'cs-job') { if (t.value) f.card.jobId = t.value; else delete f.card.jobId; save(); draw(); }
       else if (t.id === 'cs-move') {
         const to = findList(t.value);
