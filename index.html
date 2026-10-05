@@ -523,6 +523,12 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 .cal-row.ghost{opacity:.6}
 .cal-row.ghost .cal-open b{font-style:italic}
 
+.ask-ai{color:var(--accent)}
+.ai-ctx{display:flex;align-items:center;gap:8px;margin:0 0 10px;padding:6px 6px 6px 12px;border-radius:12px;background:var(--accent-soft);font-size:14px}
+.ai-ctx span{flex:1;min-width:0;display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ai-ctx span b{overflow:hidden;text-overflow:ellipsis}
+.ai-ctx .ic{color:var(--accent);flex:none;width:16px;height:16px}
+
 /* ---------- theme picker ---------- */
 .themes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 @media (min-width:520px){.themes{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -567,7 +573,7 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
   .sheet.theme-sheet{width:min(900px,calc(100vw - 64px))}
   .themes{grid-template-columns:repeat(4,minmax(0,1fr))}
   #ai-btn{display:none}
-  .ai-fab{display:grid}
+  .ai-fab:not(.hide){display:grid}
 }
 /* assistant: floating button + docked chat window (desktop only) */
 .ai-fab{display:none;position:fixed;right:24px;bottom:24px;z-index:32;width:58px;height:58px;place-items:center;border:0;border-radius:50%;background:var(--accent);color:var(--accent-ink);box-shadow:var(--shadow-lift);cursor:pointer;transition:transform .15s}
@@ -3722,7 +3728,7 @@ function calendarHTML() {
     + `<button type="button" class="btn sm" data-c="today">Today</button></div>`
     + `<div class="cal-grid" role="grid">${weekdays.map(w => `<span class="cal-wd">${w}</span>`).join('')}${cells.join('')}</div>`
     + `<div class="cal-dayhead"><b>${new Date(parseISO(ui.cal.day)).toLocaleDateString(undefined, {weekday: 'long', day: 'numeric', month: 'long'})}</b>`
-    + `<span class="grow"></span><button type="button" class="btn sm" data-c="add-task">${icon('plus')}Task</button><button type="button" class="btn sm primary" data-c="add-event">${icon('plus')}Event</button></div>`
+    + `<span class="grow"></span><button type="button" class="icon-btn sm ask-ai" data-c="ai" aria-label="Ask the assistant about this day" title="Ask AI about this day">${icon('sparkle')}</button><button type="button" class="btn sm" data-c="add-task">${icon('plus')}Task</button><button type="button" class="btn sm primary" data-c="add-event">${icon('plus')}Event</button></div>`
     + (dayItems.length ? dayItems.map(it => `<div class="cal-row${it.done ? ' done' : ''}${it.ghost ? ' ghost' : ''}">`
         + (it.kind === 'card' && !it.ghost ? `<button type="button" class="check${it.done ? ' on' : ''}" data-c="toggle" data-id="${it.id}" aria-label="${it.done ? 'Mark as not done' : 'Mark as done'}">${icon('check')}</button>` : `<span class="cal-evdot" style="--c:${it.color}"></span>`)
         + `<button type="button" class="cal-open" data-c="open" data-kind="${it.kind}" data-id="${it.id}"><span class="cal-time">${it.allDay ? 'All day' : esc(it.time) + (it.end ? '–' + esc(it.end) : '')}</span>`
@@ -3757,6 +3763,7 @@ function openCalendar(day) {
         case 'today': ui.cal.day = isoDay(0); ui.cal.month = ui.cal.day.slice(0, 7); draw(); return;
         case 'add-event': openEventEditor(null, {date: ui.cal.day, back}); return;
         case 'add-task': openCalTaskSheet(ui.cal.day, back); return;
+        case 'ai': close(); openAssistant({ctx: {kind: 'day', id: ui.cal.day}}); return;
         case 'toggle': { const f = findCard(b.dataset.id); if (f) { const moved = setDone(f.card, !f.card.done); commit(); if (moved) toast(moved); draw(); } return; }
         case 'open': if (b.dataset.kind === 'card') { close(); openCard(b.dataset.id); } else openEventEditor(b.dataset.id, {back}); return;
       }
@@ -3781,7 +3788,7 @@ function openEventEditor(id, {date, back} = {}) {
       + `<div class="fld"><label for="ev-remind">Reminder</label><span class="select-wrap block"><select id="ev-remind" class="select">${REMINDS.map(([k, n]) => `<option value="${k}"${k === ev.remind ? ' selected' : ''}>${n}</option>`).join('')}</select></span></div>`
       + `<div class="fld full"><label for="ev-notes">Notes</label><textarea id="ev-notes" class="field area" rows="3">${esc(ev.notes)}</textarea></div>`
       + `</div><p class="sheet-hint" id="ev-msg" aria-live="polite">${'Notification' in window && notifStatus() !== 'on' ? 'Turn on notifications in Settings to get event reminders.' : ''}</p>`
-      + `<div class="sheet-actions">${ex ? `<button type="button" class="btn danger" data-x="del">${icon('trash')}Delete</button>` : ''}<span class="grow"></span><button type="button" class="btn" data-x="cancel">Cancel</button><button type="submit" class="btn primary">Save</button></div></form>`;
+      + `<div class="sheet-actions">${ex ? `<button type="button" class="btn danger" data-x="del">${icon('trash')}Delete</button><button type="button" class="btn ask-ai" data-x="ai">${icon('sparkle')}Ask AI</button>` : ''}<span class="grow"></span><button type="button" class="btn" data-x="cancel">Cancel</button><button type="submit" class="btn primary">Save</button></div></form>`;
     const done = () => { close(); if (back) back(); };
     inner.addEventListener('change', e => {
       if (e.target.id === 'ev-repeat') { $('#ev-until-wrap', inner).hidden = e.target.value === 'none'; return; }
@@ -3795,6 +3802,7 @@ function openEventEditor(id, {date, back} = {}) {
       const x = e.target.closest('[data-x]'); if (!x) return;
       if (x.dataset.x === 'cancel') done();
       else if (x.dataset.x === 'del') { close(); withUndo(`Deleted “${ex.title}”`, () => { state.events.splice(state.events.indexOf(ex), 1); }); if (back) back(); }
+      else if (x.dataset.x === 'ai') { close(); openAssistant({ctx: {kind: 'event', id: ex.id, title: ex.title}}); }
     });
     inner.querySelector('form').addEventListener('submit', e => {
       e.preventDefault();
@@ -3862,7 +3870,7 @@ const AI_PROVIDERS = {
 };
 /* keys, chosen models and custom instructions stay on this device ("docket.ai"); each provider keeps its own key and model */
 const AI = {provider: 'openrouter', keys: {}, models: {}, custom: '', busy: false};
-const aiChat = {messages: [], log: [], undo: null};
+const aiChat = {messages: [], log: [], undo: null, ctx: null};
 let aiModelCache = {};
 function aiLoad() {
   try {
@@ -3924,6 +3932,11 @@ const AI_TOOLS = [
   fn('create_list', 'Create a list (column) on a board.', {board: S('Board name'), title: S('List title')}, ['title']),
   fn('create_event', 'Add a calendar event.', {title: S('Event title'), date: S('YYYY-MM-DD'), start_time: S('HH:MM (omit for all-day)'), end_time: S('HH:MM (optional)'),
     repeat: S('none, daily, weekdays, weekly, biweekly, monthly or yearly', {enum: REPEAT_KEYS}), repeat_until: S('Last date the event repeats, YYYY-MM-DD (optional)'), reminder_minutes_before: {type: 'integer', description: 'Minutes before the start to notify; omit for no reminder'}, notes: S('Notes (optional)')}, ['title', 'date']),
+  fn('get_event', 'Read one calendar event in full.', {event_id: S('Event id')}, ['event_id']),
+  fn('update_event', 'Change a calendar event. Only the fields you give are changed.', {event_id: S('Event id'), title: S('New title'), date: S('YYYY-MM-DD'),
+    start_time: S('HH:MM, or empty string to make it all-day'), end_time: S('HH:MM'), notes: S('Replace the notes'), append_notes: S('Text to add at the end of the notes'),
+    repeat: S('none, daily, weekdays, weekly, biweekly, monthly or yearly', {enum: REPEAT_KEYS}), repeat_until: S('YYYY-MM-DD, or empty string to clear'),
+    reminder_minutes_before: {type: 'integer', description: 'Minutes before the start to notify; -1 for no reminder'}}, ['event_id']),
   fn('list_events', 'List calendar events and due cards between two dates.', {from: S('YYYY-MM-DD'), to: S('YYYY-MM-DD')}, ['from', 'to']),
   fn('set_reminder', 'Send the user a phone notification at a specific local date and time, optionally repeating at the same time.', {at: S('First time, local, YYYY-MM-DDTHH:MM'), message: S('What the notification should say'), details: S('Extra line (optional)'),
     repeat: S('none, daily, weekdays, weekly, biweekly, monthly or yearly', {enum: REPEAT_KEYS}), until: S('Last date it repeats, YYYY-MM-DD (optional)')}, ['at', 'message'])
@@ -4013,6 +4026,24 @@ function aiRun(name, a) {
       state.events.push(ev);
       return {ok: true, event_id: ev.id, reminder: ev.remind >= 0 ? `${ev.remind} min before` : 'none', notifications_on: notifStatus() === 'on'};
     }
+    case 'get_event': {
+      const ev = state.events.find(e => e.id === a.event_id); if (!ev) return {error: 'No event with that id. Use list_events first.'};
+      return {id: ev.id, title: ev.title, date: ev.date, all_day: ev.allDay, start_time: ev.allDay ? null : ev.start, end_time: ev.allDay ? null : ev.end || null, last_day: ev.endDate || null,
+        repeat: ev.repeat, repeat_until: ev.until || null, reminder_minutes_before: ev.remind, notes: ev.notes};
+    }
+    case 'update_event': {
+      const ev = state.events.find(e => e.id === a.event_id); if (!ev) return {error: 'No event with that id. Use list_events first.'};
+      if (a.title) ev.title = String(a.title).slice(0, 120);
+      if (validDate(a.date)) ev.date = a.date;
+      if (a.start_time === '') ev.allDay = true; else if (validTime(a.start_time)) { ev.allDay = false; ev.start = a.start_time; }
+      if (validTime(a.end_time)) ev.end = a.end_time;
+      if (typeof a.notes === 'string') ev.notes = a.notes;
+      if (a.append_notes) ev.notes = (ev.notes ? ev.notes.replace(/\s+$/, '') + '\n' : '') + a.append_notes;
+      if (REPEAT_KEYS.includes(a.repeat)) ev.repeat = a.repeat;
+      if (a.repeat_until === '') ev.until = ''; else if (validDate(a.repeat_until)) ev.until = a.repeat_until;
+      if (Number.isInteger(a.reminder_minutes_before)) ev.remind = a.reminder_minutes_before < 0 ? -1 : a.reminder_minutes_before;
+      return {ok: true, event: aiRun('get_event', {event_id: ev.id})};
+    }
     case 'list_events': {
       if (!validDate(a.from) || !validDate(a.to)) return {error: 'from and to must be YYYY-MM-DD'};
       const out = []; const d = new Date(parseISO(a.from)), end = parseISO(a.to);
@@ -4029,7 +4060,21 @@ function aiRun(name, a) {
   }
   return {error: 'Unknown tool'};
 }
-const AI_LABEL = {create_card: 'Created card', update_card: 'Updated card', create_list: 'Created list', create_event: 'Added event', set_reminder: 'Set reminder'};
+const AI_LABEL = {update_event: 'Updated event', create_card: 'Created card', update_card: 'Updated card', create_list: 'Created list', create_event: 'Added event', set_reminder: 'Set reminder'};
+function aiCtxPrompt() {
+  const ctx = aiChat.ctx; if (!ctx) return '';
+  let data = null;
+  if (ctx.kind === 'card') data = aiRun('get_card', {card_id: ctx.id});
+  else if (ctx.kind === 'event') data = aiRun('get_event', {event_id: ctx.id});
+  else data = {date: ctx.id, items: itemsOn(ctx.id).map(it => ({kind: it.kind, id: it.id, title: it.title, time: it.allDay ? 'all day' : it.time + (it.end ? '-' + it.end : ''), done: it.done}))};
+  if (!data || data.error) return '';
+  const what = ctx.kind === 'card' ? 'card (task)' : ctx.kind === 'event' ? 'calendar event' : 'calendar day';
+  return `# What the user is working on
+The user opened you from this ${what}. "This", "it", "the task", "the event" or "that day" mean it, unless they clearly mean something else. Use its id directly (no need to search for it).
+${JSON.stringify(data)}
+
+`;
+}
 function aiSystemPrompt() {
   const now = new Date(), tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const week = Array.from({length: 8}, (_, i) => { const d = new Date(); d.setDate(d.getDate() + i); return `${i === 0 ? 'today' : i === 1 ? 'tomorrow' : d.toLocaleDateString('en-GB', {weekday: 'long'})} = ${dayKey(d.getTime())}`; }).join(', ');
@@ -4054,7 +4099,7 @@ You are the built-in assistant of Docket, the user's personal to-do, calendar an
 - Repeating: cards with a due date can repeat (daily, weekdays, weekly, biweekly, monthly, yearly); when one is finished the next copy is created automatically with the next due date. Events and reminders can repeat the same way, optionally until a date.
 - Work hours, jobs, timers, themes and settings exist in the app but you cannot change them; tell the user where to find them (timer button at the top, Settings).
 
-# Right now
+${aiCtxPrompt()}# Right now
 - Local time: ${now.toLocaleString('en-GB', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'})} (${tz}).
 - Dates this week: ${week}.
 - Notifications are ${notif}.
@@ -4126,7 +4171,7 @@ async function aiSend(text, redraw) {
         try { result = aiRun(c.function && c.function.name, args); } catch (e) { result = {error: String(e.message || e)}; }
         if (result && result.ok && AI_LABEL[c.function.name]) {
           changed = true;
-          const what = args.title || args.message || (result.card && result.card.title) || '';
+          const what = args.title || args.message || (result.card && result.card.title) || (result.event && result.event.title) || '';
           aiChat.log.push({who: 'act', text: `${AI_LABEL[c.function.name]}${what ? ': ' + what : ''}${result.board ? ` (${result.board}${result.list ? ' · ' + result.list : ''})` : ''}${result.at ? ' · ' + result.at : ''}`});
         }
         aiChat.messages.push({role: 'tool', tool_call_id: c.id, content: JSON.stringify(result).slice(0, 6000)});
@@ -4147,12 +4192,32 @@ const aiFormat = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/^[-
 
 /* every time the assistant is opened it starts a new chat (pass {keep: true} to return to the current one) */
 let aiDock = null;
+/* opts.ctx = {kind: 'card'|'event'|'day', id, title}: the assistant works on that item */
 function openAssistant(opts = {}) {
-  if (!opts.keep) { aiChat.messages = []; aiChat.log = []; aiChat.undo = null; aiSaveChat(); }
+  if (!opts.keep) { aiChat.messages = []; aiChat.log = []; aiChat.undo = null; aiChat.ctx = opts.ctx || null; aiSaveChat(); }
   if (wide.matches) { openAiDock(); return; }
   closeAiDock();
-  openSheet(inner => mountAssistant(inner, () => closeSheet()), {cls: 'tall'});
+  const ctx = aiChat.ctx;
+  /* on the phone, closing the assistant returns to the card or event it was opened from */
+  openSheet(inner => mountAssistant(inner, () => closeSheet()), {cls: 'tall', onClose: () => setTimeout(() => { if (!sheet && ctx && aiChat.ctx === ctx) aiOpenCtx(ctx); }, 0)});
 }
+function aiOpenCtx(ctx) {
+  if (!ctx) return;
+  if (ctx.kind === 'card' && findCard(ctx.id)) openCard(ctx.id);
+  else if (ctx.kind === 'event' && state.events.some(e => e.id === ctx.id)) openEventEditor(ctx.id, {back: () => openCalendar()});
+  else if (ctx.kind === 'day') openCalendar(ctx.id);
+}
+function aiCtxTitle(ctx) {
+  if (!ctx) return '';
+  if (ctx.kind === 'card') { const f = findCard(ctx.id); return f ? f.card.title : ctx.title; }
+  if (ctx.kind === 'event') { const ev = state.events.find(e => e.id === ctx.id); return ev ? ev.title : ctx.title; }
+  return new Date(parseISO(ctx.id)).toLocaleDateString(undefined, {weekday: 'long', day: 'numeric', month: 'long'});
+}
+const AI_CTX_SUGGEST = {
+  card: ['Write a short description for this', 'Break this into a checklist', 'Remind me about this tomorrow at 9:00', 'Make this repeat every week', 'Set it to high priority and due on Friday'],
+  event: ['Add an agenda to the notes', 'Remind me 1 day before', 'Make it repeat every week', 'Move it to next Monday at 10:00'],
+  day: ['What is on this day?', 'Plan this day for me', 'Add a task for this day', 'Remind me at 8:00 that day what is coming']
+};
 function openAiDock() {
   closeAiDock();
   const el = document.createElement('div');
@@ -4176,16 +4241,18 @@ function mountAssistant(inner, close, docked) {
       const keepEl = docked ? $('#ai-input', inner.parentNode) : $('#ai-input', inner), keep = keepEl ? keepEl.value : '';
       if (docked) { const old = $(':scope > .ai-form', inner.parentNode); if (old) old.remove(); }
       const last = aiChat.log.length - 1;
+      const ctx = aiChat.ctx;
       inner.innerHTML = `<div class="ai-top sheet-drag"><b>${icon('sparkle')}Assistant</b><small class="mono muted">${aiReady() ? esc(aiModel()) : ''}</small><span class="grow"></span>`
         + (aiChat.log.length ? `<button type="button" class="btn sm" data-x="clear">New chat</button>` : '') + `<button type="button" class="icon-btn" data-x="settings" aria-label="Assistant settings">${icon('dotsV')}</button>`
         + (docked ? `<button type="button" class="icon-btn" data-x="close" aria-label="Close assistant">${icon('x')}</button>` : '') + `</div>`
+        + (ctx ? `<div class="ai-ctx"><span>${icon(ctx.kind === 'event' || ctx.kind === 'day' ? 'cal' : 'checklist')}Working on <b>${esc(aiCtxTitle(ctx))}</b></span><button type="button" class="link" data-x="ctx-open">Open</button><button type="button" class="icon-btn sm" data-x="ctx-clear" aria-label="Stop focusing on it">${icon('x')}</button></div>` : '')
         + (!aiReady() ? `<div class="ai-empty"><p class="sheet-text">Connect an AI model to create tasks, write notes and checklists, plan your week and set reminders by just asking.</p><button type="button" class="btn primary" data-x="settings">Set up the assistant</button></div>`
           : `<div class="ai-log" id="ai-log">` + (aiChat.log.length ? aiChat.log.map((m, i) =>
               m.who === 'user' ? `<div class="ai-msg me">${aiFormat(m.text)}</div>`
               : m.who === 'act' ? `<div class="ai-act">${icon('check')}${esc(m.text)}</div>`
               : m.who === 'err' ? `<div class="ai-msg err">${esc(m.text)}</div>`
               : `<div class="ai-msg">${aiFormat(m.text)}${m.undo && i === last && aiChat.undo ? `<div><button type="button" class="link" data-x="undo">Undo these changes</button></div>` : ''}</div>`).join('')
-            : `<div class="ai-empty"><p class="sheet-hint">Try:</p>` + ['Add “Buy cables” to Work for Friday, high priority', 'Write a checklist for the magnets task', 'Remind me tomorrow at 9:00 to call the supplier', 'What is due this week?', 'Add a dentist appointment on Thursday at 14:00 with a reminder 1 hour before']
+            : `<div class="ai-empty"><p class="sheet-hint">Try:</p>` + (ctx ? AI_CTX_SUGGEST[ctx.kind] : ['Add “Buy cables” to Work for Friday, high priority', 'Write a checklist for the magnets task', 'Remind me tomorrow at 9:00 to call the supplier', 'What is due this week?', 'Add a dentist appointment on Thursday at 14:00 with a reminder 1 hour before'])
                 .map(sg => `<button type="button" class="fchip ai-sg" data-sg="${esc(sg)}">${esc(sg)}</button>`).join('') + `</div>`)
             + (AI.busy ? `<div class="ai-msg typing"><i></i><i></i><i></i></div>` : '') + `</div>`
             + `<form class="ai-form" data-form="ai" novalidate><textarea id="ai-input" class="field" rows="1" placeholder="Ask or tell me what to do…" aria-label="Message the assistant"${AI.busy ? ' disabled' : ''}>${esc(keep)}</textarea>`
@@ -4205,6 +4272,8 @@ function mountAssistant(inner, close, docked) {
       const x = e.target.closest('[data-x]'); if (!x) return;
       if (x.dataset.x === 'settings') { if (docked) close(); openAISettings(() => openAssistant({keep: true})); }
       else if (x.dataset.x === 'close') close();
+      else if (x.dataset.x === 'ctx-open') { const c = aiChat.ctx; if (docked) aiOpenCtx(c); else { aiChat.ctx = null; close(); aiOpenCtx(c); } }
+      else if (x.dataset.x === 'ctx-clear') { aiChat.ctx = null; draw(); }
       else if (x.dataset.x === 'clear') { aiChat.messages = []; aiChat.log = []; aiChat.undo = null; aiSaveChat(); draw(); }
       else if (x.dataset.x === 'undo' && aiChat.undo) { state = normalize(JSON.parse(aiChat.undo)); aiChat.undo = null; commit(); aiChat.log.push({who: 'act', text: 'Undid the last changes'}); aiChat.messages.push({role: 'user', content: '(I undid all the changes you made in your last answer.)'}); aiSaveChat(); draw(); }
     });
@@ -4328,6 +4397,7 @@ function openCard(id) {
         `<div class="cs-head sheet-drag">`
         + `<button type="button" class="check big${k.done ? ' on' : ''}" data-cs="done" aria-pressed="${k.done}" aria-label="${k.done ? 'Mark as not done' : 'Mark as done'}">${icon('check')}</button>`
         + `<textarea id="cs-title" class="cs-title" rows="1" maxlength="300" aria-label="Card title" enterkeyhint="done">${esc(k.title)}</textarea>`
+        + `<button type="button" class="icon-btn ask-ai" data-cs="ai" aria-label="Ask the assistant about this card" title="Ask AI about this card">${icon('sparkle')}</button>`
         + `<button type="button" class="icon-btn star-btn${k.pinned ? ' on' : ''}" data-cs="pin" aria-pressed="${k.pinned}" aria-label="${k.pinned ? 'Unpin' : 'Pin to top'}" title="${k.pinned ? 'Unpin' : 'Pin to top of the column'}">${icon(k.pinned ? 'starFill' : 'star')}</button>`
         + `<button type="button" class="icon-btn" data-cs="close" aria-label="Close">${icon('x')}</button></div>`
         + `<div class="cs-where"><span class="tab-dot" style="--c:var(--l-${c.color})"></span><label for="cs-move" class="sr-only">List</label><span class="select-wrap"><select id="cs-move" class="select">`
@@ -4397,6 +4467,7 @@ function openCard(id) {
         case 'add-time': openEntryEditor(null, {cardId: id, back}); return;
         case 'tags': openTagPicker(id, back); return;
         case 'clear-due': k.due = ''; k.dueTime = ''; k.repeat = 'none'; break;
+        case 'ai': close(); openAssistant({ctx: {kind: 'card', id, title: k.title}}); return;
         case 'pin': k.pinned = !k.pinned; haptic('select'); toast(k.pinned ? 'Pinned to the top of the column' : 'Unpinned'); break;
         case 'prio': k.priority = +b.dataset.p; haptic('select'); break;
         case 'copy': openCopySheet(id, back); return;
