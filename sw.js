@@ -1,7 +1,7 @@
 /* Docket service worker: offline app shell, cached fonts/libraries, push reminders */
-const VERSION = 'docket-v2';
+const VERSION = 'docket-v3';
 const RUNTIME = 'docket-runtime';
-const PUSH_SERVER = '__PUSH_SERVER__';
+const PUSH_SERVER = 'https://docket-push.ethecho-ui.workers.dev';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/favicon-32.png', './icons/badge-96.png'];
 const EXTERNAL = /^(fonts\.googleapis\.com|fonts\.gstatic\.com|cdnjs\.cloudflare\.com)$/;
 

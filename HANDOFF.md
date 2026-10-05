@@ -52,13 +52,13 @@ Device-only (never synced): GitHub token in localStorage `docket.github`; sync-f
 
 **Reminders:** `reminderItems()` builds the next 45 days of reminders. They are sent to the push server (`POST /sync`) whenever they change, and also fired locally by `scheduleLocal()` while the app is open (same notification tags, so duplicates replace each other).
 
-## 4. Push server (Cloudflare Worker): NOT DEPLOYED YET
+## 4. Push server (Cloudflare Worker): live at https://docket-push.ethecho-ui.workers.dev
 
 Source: `projects/kanban-todo-app/output/push-worker/` on the user's machine (not in this repo).
 - One SQLite-backed Durable Object per push subscription stores the schedule and sets an **alarm** for the next reminder. When it fires, it sends an **empty VAPID-signed push**; the service worker then fetches the text from `/pending`.
 - Endpoints: `/sync`, `/pending`, `/test`, `/unsubscribe`, `/move` (subscription renewal), `/export`.
 - VAPID public key is in `index.html` (`VAPID_PUBLIC`) and `wrangler.jsonc`. The **private key is only in `projects/kanban-todo-app/secrets/vapid.json`** on the user's machine; it must be set as the Worker secret `VAPID_PRIVATE_JWK`.
-- **To finish:** `wrangler login --device` (user approves the code), `wrangler deploy` in `push-worker/`, `wrangler secret put VAPID_PRIVATE_JWK`, then replace the placeholder `__PUSH_SERVER__` in **both** `index.html` and `sw.js` with the worker URL (`https://docket-push.<subdomain>.workers.dev`), bump `VERSION` in `sw.js`, commit and push. `ALLOWED_ORIGINS` must be `https://ethecho-ui.github.io`. Until then, reminders only fire while the app is open.
+- **Deployed 2026-10-06** to the Cloudflare account of zradicka.matyas2@gmail.com (workers.dev subdomain `ethecho-ui`). To redeploy, run `wrangler deploy` in `push-worker/`; the secret `VAPID_PRIVATE_JWK` is already set. `PUSH_SERVER` in index.html and sw.js points at the Worker. Verified live: CORS limited to the app origin, /sync sets the alarm, the alarm fires on time, VAPID signing works.
 - Free-plan facts checked 2026-10-05: SQLite Durable Objects and alarms are allowed on the free plan; 100k requests/day; 10 ms CPU per invocation.
 
 ## 5. How to work on it
@@ -85,6 +85,6 @@ Source: `projects/kanban-todo-app/output/push-worker/` on the user's machine (no
 
 ## 8. Next steps (in order)
 
-1. Deploy the push server (section 4) and switch reminders while closed on.
+1. Done: push server deployed. On each device, open Settings → Notifications and tap Turn on (or Fix) once so the device registers.
 2. **AI assistant (requested):** settings for an **OpenRouter** and/or **Google Gemini** API key (stored on the device only), a chat sheet, and tool-calling so it can create/edit cards (descriptions, checklists, notes, tags, priority, due), create events, and set one-off reminders (`state.reminders`, which the push schedule already sends). Check the current API docs and model names before building, and confirm both APIs allow calls from the browser (CORS).
 3. Possible later: per-field sync merge instead of last-writer-wins; week view in the calendar.
