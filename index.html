@@ -833,7 +833,7 @@ function normalize(s) {
   if (!THEME_LIST.some(t => t[0] === s.settings.theme)) s.settings.theme = 'system';
   s.jobs = Array.isArray(s.jobs) ? s.jobs.filter(j => j && j.id).map(j => ({id: j.id, name: String(j.name || 'Job'), color: LABEL_KEYS.includes(j.color) ? j.color : 'ultra', rate: Number(j.rate) || 0, currency: String(j.currency || '')})) : [];
   const jobIds = new Set(s.jobs.map(j => j.id));
-  s.entries = Array.isArray(s.entries) ? s.entries.filter(e => e && Number.isFinite(e.start)).map(e => ({id: e.id || uid(), jobId: jobIds.has(e.jobId) ? e.jobId : null, cardId: e.cardId || null, title: String(e.title || ''), start: e.start, end: Number.isFinite(e.end) ? e.end : null, note: String(e.note || '')})) : [];
+  s.entries = Array.isArray(s.entries) ? s.entries.filter(e => e && Number.isFinite(e.start)).map(e => ({id: e.id || uid(), jobId: jobIds.has(e.jobId) ? e.jobId : null, cardId: e.cardId || null, title: String(e.title || ''), start: e.start, end: Number.isFinite(e.end) ? e.end : null, note: String(e.note || ''), ...(e.undated && Number.isFinite(e.end) ? {undated: true} : {})})) : [];
   /* only one timer may run */
   let seen = false;
   for (const e of [...s.entries].sort((a, b) => b.start - a.start)) { if (e.end == null) { if (seen) e.end = e.start; seen = true; } }
@@ -2397,6 +2397,11 @@ function periodRange(kind, from, to) {
   }
 }
 const entryMs = (e, now = Date.now()) => (e.end ?? now) - e.start;
+/* entries logged as a plain duration ("no specific date") group together instead of under a day */
+const dayGroupKey = e => e.undated ? 'nodate' : dayKey(e.start);
+const dayGroupLabel = k => k === 'nodate' ? 'No date' : fmtDay(k);
+const timeRange = e => e.undated ? `No date · logged ${fmtDate(e.end)}` : `${hhmm(e.start)}–${e.end == null ? 'now' : hhmm(e.end)}`;
+const groupByDay = list => { const g = new Map(); list.forEach(e => { const k = dayGroupKey(e); if (!g.has(k)) g.set(k, []); g.get(k).push(e); }); return [...g].sort((a, b) => (b[0] === 'nodate') - (a[0] === 'nodate')); };
 function earnings(list) {
   const by = {};
   for (const e of list) { const j = jobById(e.jobId); if (j && j.rate) by[j.currency || ''] = (by[j.currency || ''] || 0) + entryMs(e) / 36e5 * j.rate; }
@@ -2416,7 +2421,7 @@ function tasksForJob(jobId) {
     let t = map.get(k);
     if (!t) { t = {key: k, title: entryLabel(e), cardId: e.cardId || null, total: 0, last: 0, live: null}; map.set(k, t); }
     t.total += entryMs(e, now);
-    if (e.start > t.last) { t.last = e.start; t.title = entryLabel(e); }
+    if (e.start > t.last) { t.last = e.start; t.lastUndated = !!e.undated; t.title = entryLabel(e); }
     if (e.end == null) t.live = e;
   }
   /* tasks added without starting a timer */
@@ -2518,7 +2523,7 @@ function liveEarnHTML(e, base = 0) {
 
 function taskRowHTML(t, now) {
   const live = t.live;
-  const sub = live ? `Running now${jobById(live.jobId) && jobById(live.jobId).rate ? ' · ' + liveEarnHTML(live) : ''}` : t.fresh ? 'Not started yet' : relDay(t.last);
+  const sub = live ? `Running now${jobById(live.jobId) && jobById(live.jobId).rate ? ' · ' + liveEarnHTML(live) : ''}` : t.fresh ? 'Not started yet' : t.lastUndated ? 'No date' : relDay(t.last);
   return `<div class="task-row${live ? ' live' : ''}"><button type="button" class="entry" data-t="task" data-k="${esc(t.key)}">`
     + `<span class="t"><b>${esc(t.title)}</b><small>${sub}${t.cardId ? ` · ${icon('checklist')}card` : ''}</small></span>`
     + `<span class="d">${live ? `<span data-since="${live.start}" data-base="${t.total - (now - live.start)}">${clock(t.total)}</span>` : t.total ? fmtHM(t.total) : ''}</span></button>`
@@ -2541,13 +2546,11 @@ function hoursHTML() {
   const runningHere = r && r.jobId === j.id && list.includes(r) && j.rate;
   const finishedMoney = j.rate ? list.filter(e => e.end != null).reduce((s, e) => s + (e.end - e.start) / 36e5 * j.rate, 0) : 0;
   const earn = runningHere ? liveEarnHTML(r, finishedMoney) : j.rate ? esc(fmtMoney(finishedMoney, j.currency)) : '';
-  const groups = new Map();
-  list.forEach(e => { const k = dayKey(e.start); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(e); });
-  const days = [...groups].map(([k, es]) => `<div class="day"><div class="day-head"><span>${fmtDay(k)}</span><span>${fmtHM(es.reduce((s, e) => s + entryMs(e, now), 0))}</span></div>`
+  const days = groupByDay(list).map(([k, es]) => `<div class="day"><div class="day-head"><span>${dayGroupLabel(k)}</span><span>${fmtHM(es.reduce((s, e) => s + entryMs(e, now), 0))}</span></div>`
     + es.map(e => {
       const live = e.end == null;
       return `<button type="button" class="entry${live ? ' live' : ''}" data-t="entry" data-e="${e.id}">`
-        + `<span class="t"><b>${esc(entryLabel(e))}</b><small>${hhmm(e.start)}–${live ? 'now' : hhmm(e.end)}${e.note ? ` · ${esc(e.note)}` : ''}</small></span>`
+        + `<span class="t"><b>${esc(entryLabel(e))}</b><small>${timeRange(e)}${e.note ? ` · ${esc(e.note)}` : ''}</small></span>`
         + `<span class="d">${live ? `<span data-since="${e.start}">${clock(now - e.start)}</span>` : fmtHM(e.end - e.start)}</span></button>`;
     }).join('') + `</div>`).join('');
   const other = r && (r.jobId || null) !== j.id ? r : null;
@@ -2652,12 +2655,13 @@ function statsHTML() {
   const curs = Object.keys(allMoney).sort((a, b) => allMoney[b] - allMoney[a]);
   const cur = curs[0] ?? null;
   const money = cur == null ? 0 : (moneyBy(list)[cur] || 0);
-  const days = new Set(list.map(e => dayKey(e.start))).size;
+  const days = new Set(list.filter(e => !e.undated).map(e => dayKey(e.start))).size;
+  const undatedMs = list.filter(e => e.undated).reduce((a, e) => a + entryMs(e, now), 0);
   const per = {week: 'last week', month: 'last month', year: 'last year'}[s.period];
   const diff = ms - prevMs;
   const delta = prevMs || ms ? `${diff >= 0 ? '▲' : '▼'} ${fmtHM(Math.abs(diff))} vs ${per}` : '';
   const tiles = `<div class="tiles">`
-    + `<div class="tile"><div class="k">Hours</div><div class="v">${fmtHM(ms)}</div><div class="s">${delta}</div></div>`
+    + `<div class="tile"><div class="k">Hours</div><div class="v">${fmtHM(ms)}</div><div class="s">${undatedMs ? `incl. ${fmtHM(undatedMs)} with no date` : delta}</div></div>`
     + `<div class="tile"><div class="k">Earned</div><div class="v">${cur == null ? '–' : esc(fmtMoney(money, cur))}</div><div class="s">${cur == null ? 'Set an hourly rate in Settings → Jobs' : curs.length > 1 ? `Only ${esc(cur || 'no currency')} shown` : `${(ms / 36e5).toFixed(2)} h`}</div></div>`
     + `<div class="tile"><div class="k">Days worked</div><div class="v">${days}</div><div class="s">of ${R.buckets.length} ${s.period === 'year' ? 'months' : 'days'}</div></div>`
     + `<div class="tile"><div class="k">Per worked day</div><div class="v">${days ? fmtHM(ms / days) : '–'}</div><div class="s">${days && cur != null ? esc(fmtMoney(money / days, cur)) + ' a day' : ''}</div></div>`
@@ -2671,7 +2675,7 @@ function statsHTML() {
   if (s.job !== 'all' || jobsHere.length + (hasOther ? 1 : 0) <= 1) series = [{name: 'Hours', color: PAL[0], match: () => true}];
   else series = jobsHere.filter(j => state.jobs.indexOf(j) < 7).map(j => ({name: j.name, color: PAL[state.jobs.indexOf(j)], match: e => e.jobId === j.id}))
     .concat(hasOther ? [{name: 'Other', color: OTHER, match: e => !e.jobId || state.jobs.findIndex(j => j.id === e.jobId) >= 7}] : []);
-  series.forEach(se => { se.values = R.buckets.map(b => list.filter(e => se.match(e) && inRange(e, b.from, b.to)).reduce((a, e) => a + entryMs(e, now) / 36e5, 0)); });
+  series.forEach(se => { se.values = R.buckets.map(b => list.filter(e => !e.undated && se.match(e) && inRange(e, b.from, b.to)).reduce((a, e) => a + entryMs(e, now) / 36e5, 0)); });
   const legend = series.length > 1 ? `<div class="legend">${series.map(se => `<span><i style="--c:${se.color}"></i>${esc(se.name)}</span>`).join('')}</div>` : '';
   const hoursChart = `<div class="sec-head"><h3>Hours per ${s.period === 'year' ? 'month' : 'day'}</h3></div>` + legend
     + columnChart({buckets: R.buckets, series, fmt: v => fmtHM(v * 36e5), tick: hTick, label: `Hours per ${s.period === 'year' ? 'month' : 'day'}, ${R.title}`});
@@ -2802,8 +2806,6 @@ function openTaskSheet(key) {
       if (!t) { close(); openTimePanel('hours'); return; }
       const now = Date.now();
       const es = state.entries.filter(e => (e.jobId || null) === j.id && taskKey(e) === key).sort((a, b) => b.start - a.start);
-      const groups = new Map();
-      es.forEach(e => { const k = dayKey(e.start); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(e); });
       const finished = es.filter(e => e.end != null).reduce((s, e) => s + (e.end - e.start), 0);
       const money = j.rate ? (t.live ? liveEarnHTML(t.live, finished / 36e5 * j.rate) : esc(fmtMoney(finished / 36e5 * j.rate, j.currency))) : '';
       inner.innerHTML = `<div class="cs-head sheet-drag">`
@@ -2818,8 +2820,8 @@ function openTaskSheet(key) {
         + `<p class="sheet-hint">Linking a card from your lists means its timer counts here too, and this task shows the card’s name.</p></section>`
         + `<section class="cs-sec"><div class="cs-sec-head"><h3>Logged time</h3><span class="mono">`
         + (t.live ? `<span data-since="${t.live.start}" data-base="${t.total - (now - t.live.start)}">${clock(t.total)}</span>` : fmtHM(t.total)) + (money ? ` · ${money}` : '') + `</span></div>`
-        + ([...groups].map(([k, list]) => `<div class="day"><div class="day-head"><span>${fmtDay(k)}</span><span>${fmtHM(list.reduce((s, e) => s + entryMs(e, now), 0))}</span></div>`
-          + list.map(e => `<button type="button" class="entry${e.end == null ? ' live' : ''}" data-x="entry" data-e="${e.id}"><span class="t"><b>${hhmm(e.start)}–${e.end == null ? 'now' : hhmm(e.end)}</b>${e.note ? `<small>${esc(e.note)}</small>` : ''}</span>`
+        + (groupByDay(es).map(([k, list]) => `<div class="day"><div class="day-head"><span>${dayGroupLabel(k)}</span><span>${fmtHM(list.reduce((s, e) => s + entryMs(e, now), 0))}</span></div>`
+          + list.map(e => `<button type="button" class="entry${e.end == null ? ' live' : ''}" data-x="entry" data-e="${e.id}"><span class="t"><b>${timeRange(e)}</b>${e.note ? `<small>${esc(e.note)}</small>` : ''}</span>`
             + `<span class="d">${e.end == null ? `<span data-since="${e.start}">${clock(now - e.start)}</span>` : fmtHM(e.end - e.start)}</span></button>`).join('') + `</div>`).join('') || `<p class="empty sm">No time yet. Press ${t.fresh ? 'Start' : 'Continue'} or add past time.</p>`)
         + `</section>`
         + `<footer class="cs-foot"><span class="mono muted">${es.length} ${es.length === 1 ? 'entry' : 'entries'}</span><button type="button" class="btn danger" data-x="del">${icon('trash')}Delete task</button></footer>`;
@@ -2898,9 +2900,14 @@ function openEntryEditor(id, {cardId = null, jobId = null, title = '', back} = {
     inner.innerHTML = `<form novalidate><h2 class="sheet-title sheet-drag">${ex ? 'Edit time' : 'Add past time'}</h2><div class="form-grid">`
       + `<div class="fld full"><label for="en-job">Job</label><span class="select-wrap block"><select id="en-job" class="select">${jobOptions(e.jobId)}</select></span></div>`
       + `<div class="fld full"><label for="en-title">${card ? 'Card' : 'Task'}</label><input id="en-title" class="field" value="${esc(card ? card.card.title : e.title)}"${card ? ' readonly' : ''} maxlength="120" placeholder="What did you work on?" autocomplete="off"></div>`
+      + (e.end == null ? '' : `<label class="toggle full"><span>No specific date<small>Just log how long you worked, not when</small></span><input type="checkbox" id="en-undated"${e.undated ? ' checked' : ''}><span class="switch"></span></label>`)
+      + `<div class="full form-grid" id="en-when"${e.undated ? ' hidden' : ''}>`
       + `<div class="fld full"><label for="en-date">Date</label><input id="en-date" type="date" class="field" value="${dayKey(e.start)}"></div>`
       + `<div class="fld"><label for="en-start">Start</label><input id="en-start" type="time" class="field" value="${hhmm(e.start)}"></div>`
-      + `<div class="fld"><label for="en-end">End</label>${e.end == null ? `<div class="running-note"><span class="live-dot"></span><span data-since="${e.start}">${clock(now - e.start)}</span></div>` : `<input id="en-end" type="time" class="field" value="${hhmm(e.end)}">`}</div>`
+      + `<div class="fld"><label for="en-end">End</label>${e.end == null ? `<div class="running-note"><span class="live-dot"></span><span data-since="${e.start}">${clock(now - e.start)}</span></div>` : `<input id="en-end" type="time" class="field" value="${hhmm(e.end)}">`}</div></div>`
+      + (e.end == null ? '' : (() => { const mins = Math.max(0, Math.round((e.end - e.start) / 6e4)); return `<div class="full form-grid" id="en-dur"${e.undated ? '' : ' hidden'}>`
+        + `<div class="fld"><label for="en-h">Hours</label><input id="en-h" type="number" inputmode="numeric" min="0" max="999" class="field" value="${Math.floor(mins / 60)}"></div>`
+        + `<div class="fld"><label for="en-m">Minutes</label><input id="en-m" type="number" inputmode="numeric" min="0" max="59" class="field" value="${mins % 60}"></div></div>`; })())
       + `<div class="fld full"><label for="en-note">Note</label><input id="en-note" class="field" value="${esc(e.note)}" maxlength="200" autocomplete="off"></div>`
       + `</div><p class="sheet-hint" id="en-msg" aria-live="polite"></p>`
       + `<div class="sheet-actions">${ex ? `<button type="button" class="btn danger" data-x="del">${icon('trash')}Delete</button>` : ''}<span class="grow"></span>`
@@ -2908,8 +2915,28 @@ function openEntryEditor(id, {cardId = null, jobId = null, title = '', back} = {
       + `<button type="button" class="btn" data-x="cancel">Cancel</button><button type="submit" class="btn primary">Save</button></div></form>`;
     const msg = $('#en-msg', inner);
     const done = () => { close(); if (back) back(); };
+    inner.addEventListener('change', ev => {
+      if (ev.target.id !== 'en-undated') return;
+      $('#en-when', inner).hidden = ev.target.checked; $('#en-dur', inner).hidden = !ev.target.checked; haptic('select');
+    });
     inner.querySelector('form').addEventListener('submit', ev => {
       ev.preventDefault();
+      const und = $('#en-undated', inner);
+      if (und && und.checked) {
+        const mins = Math.round(Number($('#en-h', inner).value || 0) * 60 + Number($('#en-m', inner).value || 0));
+        if (!(mins > 0)) { msg.textContent = 'Enter how long you worked.'; return; }
+        /* the time stays in the period it was logged in (or keeps its old place when editing) */
+        const anchor = ex && ex.end != null ? ex.end : Date.now();
+        const patch = {jobId: $('#en-job', inner).value || null, start: anchor - mins * 6e4, end: anchor, note: $('#en-note', inner).value.trim(), undated: true};
+        if (!card) {
+          patch.title = $('#en-title', inner).value.replace(/\s+/g, ' ').trim();
+          if (!patch.title) { msg.textContent = 'Name the task so you can find it later.'; $('#en-title', inner).focus(); return; }
+        }
+        if (ex) Object.assign(ex, patch); else state.entries.push(Object.assign(e, patch));
+        commit(); toast(`Saved ${fmtHM(mins * 6e4)} with no date`);
+        done();
+        return;
+      }
       const date = $('#en-date', inner).value, st = $('#en-start', inner).value, endEl = $('#en-end', inner);
       if (!date || !st || (endEl && !endEl.value)) { msg.textContent = 'Fill in the date, start and end time.'; return; }
       const start = new Date(`${date}T${st}`).getTime();
@@ -2917,6 +2944,7 @@ function openEntryEditor(id, {cardId = null, jobId = null, title = '', back} = {
       if (endEl) { end = new Date(`${date}T${endEl.value}`).getTime(); if (end <= start) end += 864e5; }
       else if (start > Date.now()) { msg.textContent = 'A running timer can’t start in the future.'; return; }
       const patch = {jobId: $('#en-job', inner).value || null, start, end, note: $('#en-note', inner).value.trim()};
+      if (ex) delete ex.undated;
       if (!card) {
         patch.title = $('#en-title', inner).value.replace(/\s+/g, ' ').trim();
         if (!patch.title) { msg.textContent = 'Name the task so you can find it later.'; $('#en-title', inner).focus(); return; }
@@ -3073,7 +3101,7 @@ async function exportHours({job, from, to, fmt}) {
     const lines = [q(`${title} · ${period}`), '', head.map(q).join(',')];
     groups.forEach(g => g.entries.forEach(e => {
       const h = hrs(e);
-      lines.push((single ? [] : [g.name]).concat([dayKey(e.start), weekday(e.start), entryLabel(e), hhmm(e.start), e.end == null ? 'running' : hhmm(e.end), h.toFixed(2)],
+      lines.push((single ? [] : [g.name]).concat([e.undated ? 'no date' : dayKey(e.start), e.undated ? '' : weekday(e.start), entryLabel(e), e.undated ? '' : hhmm(e.start), e.undated ? '' : e.end == null ? 'running' : hhmm(e.end), h.toFixed(2)],
         anyRate ? [g.rate ? (h * g.rate).toFixed(2) : '', g.rate ? g.cur : ''] : [], [e.note || '']).map(q).join(','));
     }));
     downloadBlob(new Blob(['﻿' + lines.join('\r\n')], {type: 'text/csv;charset=utf-8'}), base + '.csv');
@@ -3177,16 +3205,17 @@ async function exportHours({job, from, to, fmt}) {
     titleBlock(ws, `${g.name} · ${period}`, `Every entry, grouped by day · ${exported}`, cols);
     header(ws, 4, ['Task', 'Start', 'End', 'Hours'].concat(rate ? ['Amount'] : [], ['Note']));
     let r = 5;
-    const byDay = new Map();
-    g.entries.forEach(e => { const k = dayKey(e.start); if (!byDay.has(k)) byDay.set(k, []); byDay.get(k).push(e); });
-    for (const [k, es] of byDay) {
-      section(ws, r, new Date(parseISO(k)).toLocaleDateString(undefined, {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'}), cols); r++;
+    for (const [k, es] of groupByDay(g.entries)) {
+      section(ws, r, k === 'nodate' ? 'No specific date' : new Date(parseISO(k)).toLocaleDateString(undefined, {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'}), cols); r++;
       const first = r;
       es.forEach((e, i) => {
         const h = hrs(e), row2 = ws.getRow(r);
         row2.getCell(1).value = entryLabel(e);
-        row2.getCell(2).value = xlTime(e.start); row2.getCell(2).numFmt = 'hh:mm';
-        if (e.end == null) row2.getCell(3).value = 'running'; else { row2.getCell(3).value = xlTime(e.end); row2.getCell(3).numFmt = 'hh:mm'; }
+        if (e.undated) { row2.getCell(2).value = '–'; row2.getCell(3).value = '–'; [2, 3].forEach(c => { row2.getCell(c).alignment = {horizontal: 'right'}; }); }
+        else {
+          row2.getCell(2).value = xlTime(e.start); row2.getCell(2).numFmt = 'hh:mm';
+          if (e.end == null) row2.getCell(3).value = 'running'; else { row2.getCell(3).value = xlTime(e.end); row2.getCell(3).numFmt = 'hh:mm'; }
+        }
         row2.getCell(4).value = Number(h.toFixed(4)); row2.getCell(4).numFmt = '0.00';
         if (rate) { row2.getCell(5).value = {formula: `D${r}*${rate}`, result: h * rate}; row2.getCell(5).numFmt = moneyFmt(g.cur); }
         row2.getCell(cols).value = e.note || null; row2.getCell(cols).alignment = {wrapText: true, vertical: 'top'};
@@ -3358,7 +3387,7 @@ function openCard(id) {
         + `<span class="select-wrap"><label for="cs-job" class="sr-only">Job</label><select id="cs-job" class="select"><option value="">${esc(catJob ? `${catJob.name} (from category)` : 'No job (category default)')}</option>`
         + state.jobs.map(j => `<option value="${j.id}"${k.jobId === j.id ? ' selected' : ''}>${esc(j.name)}</option>`).join('')
         + (catJob ? `<option value="__none"${k.jobId === '__none' ? ' selected' : ''}>No job</option>` : '') + `</select></span></div>`
-        + (cardEntries.length ? cardEntries.slice(0, 4).map(e => `<button type="button" class="entry${e.end == null ? ' live' : ''}" data-cs="entry" data-e="${e.id}"><span class="t"><b>${fmtDay(dayKey(e.start))}</b><small>${hhmm(e.start)}–${e.end == null ? 'now' : hhmm(e.end)}${e.note ? ' · ' + esc(e.note) : ''}</small></span><span class="d">${e.end == null ? `<span data-since="${e.start}">${clock(now - e.start)}</span>` : fmtHM(e.end - e.start)}</span></button>`).join('')
+        + (cardEntries.length ? cardEntries.slice(0, 4).map(e => `<button type="button" class="entry${e.end == null ? ' live' : ''}" data-cs="entry" data-e="${e.id}"><span class="t"><b>${dayGroupLabel(dayGroupKey(e))}</b><small>${e.undated ? 'logged ' + fmtDate(e.end) : hhmm(e.start) + '–' + (e.end == null ? 'now' : hhmm(e.end))}${e.note ? ' · ' + esc(e.note) : ''}</small></span><span class="d">${e.end == null ? `<span data-since="${e.start}">${clock(now - e.start)}</span>` : fmtHM(e.end - e.start)}</span></button>`).join('')
           + (cardEntries.length > 4 ? `<p class="sheet-hint">${cardEntries.length - 4} older entries are in Hours.</p>` : '') : '')
         + `<button type="button" class="link" data-cs="add-time" style="margin-top:6px">Add time manually</button></section>`
         + `<section class="cs-sec"><div class="cs-sec-head"><h3>Tags</h3><button type="button" class="link" data-cs="tags">${k.tags.length ? 'Edit' : 'Add tags'}</button></div>`
