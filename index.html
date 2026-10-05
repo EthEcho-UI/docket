@@ -495,6 +495,27 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 .rem-add{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .rem-add .field{flex:1 1 170px;min-width:0}
 
+/* assistant */
+.ai-top{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:0 0 10px;background:var(--sheet)}
+.ai-top b{display:inline-flex;align-items:center;gap:7px;font:650 18px/1.2 var(--font-display)}
+.ai-top b .ic{color:var(--accent)}
+.ai-top small{max-width:40%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ai-log{display:flex;flex-direction:column;gap:8px;padding:4px 0 90px}
+.ai-msg{align-self:flex-start;max-width:88%;padding:10px 13px;border-radius:16px 16px 16px 5px;background:var(--hover);color:var(--ink);line-height:1.45;overflow-wrap:anywhere}
+.ai-msg.me{align-self:flex-end;border-radius:16px 16px 5px 16px;background:var(--accent);color:var(--accent-ink)}
+.ai-msg.err{background:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--ink)}
+.ai-act{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;padding:2px 4px;font:500 12.5px/1.3 var(--font-mono);color:var(--good)}
+.ai-act .ic{width:14px;height:14px}
+.ai-msg.typing{display:flex;gap:4px;padding:13px 14px}
+.ai-msg.typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:pulse 1.2s ease-in-out infinite}
+.ai-msg.typing i:nth-child(2){animation-delay:.2s} .ai-msg.typing i:nth-child(3){animation-delay:.4s}
+.ai-empty{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:8px 0}
+.ai-sg{height:auto;min-height:36px;padding:8px 12px;white-space:normal;text-align:left;line-height:1.3}
+.ai-form{position:sticky;bottom:calc(-20px - env(safe-area-inset-bottom,0px));display:flex;align-items:flex-end;gap:8px;margin:0 -18px;padding:10px 18px calc(12px + env(safe-area-inset-bottom,0px));background:var(--sheet);border-top:1px solid var(--line)}
+.ai-form .field{flex:1;min-width:0;max-height:140px;resize:none}
+.ai-form .btn{height:46px;width:52px;padding:0}
+@media (min-width:760px){.ai-form{margin:0 -24px;padding:10px 24px 14px;bottom:-24px}}
+
 /* ---------- theme picker ---------- */
 .themes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 @media (min-width:520px){.themes{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -525,6 +546,7 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 <div id="app">
   <header class="top">
     <nav class="tabs" id="tabs" aria-label="Categories"></nav>
+    <button type="button" class="icon-btn top-btn" id="ai-btn" data-action="assistant" aria-label="AI assistant"></button>
     <button type="button" class="icon-btn top-btn" id="cal-btn" data-action="calendar" aria-label="Calendar"></button>
     <button type="button" class="icon-btn top-btn" id="time-btn" data-action="time" aria-label="Focus timer and work hours"></button>
     <button type="button" class="icon-btn" id="app-menu-btn" data-action="menu" aria-label="Settings and backup"></button>
@@ -605,6 +627,8 @@ const ICON = {
   briefcase: '<rect x="3.5" y="7.5" width="17" height="12" rx="2"/>' + P('M9 7.5V5.5h6v2M3.5 12.5h17'),
   sheet: '<rect x="4" y="4" width="16" height="16" rx="2"/>' + P('M4 9.5h16M4 14.5h16M10 4v16'),
   chevD: P('M7 10l5 5 5-5'),
+  sparkle: P('M12 3.5l1.7 5 5 1.7-5 1.7-1.7 5-1.7-5-5-1.7 5-1.7zM18.5 15.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z'),
+  send: P('M4.5 12L20 4.5 16.2 20 11.5 13.5zM11.5 13.5L20 4.5'),
   flag: P('M6 21V4M6 4.5h11l-2.2 4 2.2 4H6'),
   star: P('M12 3.6l2.6 5.2 5.8.9-4.2 4.1 1 5.7L12 16.8l-5.2 2.7 1-5.7-4.2-4.1 5.8-.9z'),
   starFill: `<path d="M12 3.6l2.6 5.2 5.8.9-4.2 4.1 1 5.7L12 16.8l-5.2 2.7 1-5.7-4.2-4.1 5.8-.9z" ${F}/>`,
@@ -1326,6 +1350,7 @@ const dockEl = $('#dock');
 $('#app-menu-btn').innerHTML = icon('dotsV');
 $('#time-btn').innerHTML = icon('timer');
 $('#cal-btn').innerHTML = icon('cal');
+$('#ai-btn').innerHTML = icon('sparkle');
 
 let themeApplied = false;
 function applyTheme() {
@@ -1585,6 +1610,7 @@ document.addEventListener('click', e => {
     case 'menu': appMenu(a); break;
     case 'time': openTimePanel(); break;
     case 'calendar': openCalendar(); break;
+    case 'assistant': openAssistant(); break;
     case 'open-focus': openTimePanel('focus'); break;
     case 'open-hours': openTimePanel('hours'); break;
     case 'pomo-toggle': haptic('tap'); pomoToggle(); if (timeDraw) timeDraw(); break;
@@ -1647,6 +1673,7 @@ document.addEventListener('keydown', e => {
     if (e.key === 'n' || e.key === 'N') { const l = currentCat().lists.find(x => !x.collapsed); if (l) { e.preventDefault(); startComposer(l.id); } return; }
     if (e.key === 't' || e.key === 'T') { e.preventDefault(); openTimePanel(); return; }
     if (e.key === 'c' || e.key === 'C') { e.preventDefault(); openCalendar(); return; }
+    if (e.key === 'a' || e.key === 'A') { e.preventDefault(); openAssistant(); return; }
   }
   if (e.key === 'Enter' && t.classList && t.classList.contains('card') && boardEl.contains(t)) { if (t.dataset.card) openCard(t.dataset.card); else if (t.dataset.task) openTaskSheet(t.dataset.task); }
 });
@@ -2142,6 +2169,7 @@ function appMenu(anchor) {
     {label: 'Tags', hint: `${state.tags.length} tags in ${tagGroups().length} groups`, icon: 'checklist', onSelect: () => openTagManager()},
     {label: 'Haptics', hint: s.haptics.on ? capWord(s.haptics.level) : 'Off', icon: 'vibrate', onSelect: openHapticsSheet},
     {label: 'Notifications', hint: NOTIF_TEXT[ns], icon: 'bell', onSelect: openNotifSheet},
+    {label: 'AI assistant', hint: aiReady() ? `${AI_PROVIDERS[AI.provider].name} · ${aiModel()}` : 'Not set up', icon: 'sparkle', onSelect: () => openAISettings()},
     {label: 'GitHub sync', hint: ghHint(), icon: 'upload', onSelect: openGitHubSheet},
     {label: 'Sync folder', hint: fsHint(), icon: 'folder', onSelect: openFolderSheet},
     ...(installPrompt ? [{label: 'Install Docket', hint: 'Add it to your home screen', icon: 'download', onSelect: async () => { installPrompt.prompt(); try { await installPrompt.userChoice; } catch (e) {} installPrompt = null; }}] : []),
@@ -3687,6 +3715,296 @@ function openCalTaskSheet(date, back) {
   }, {cls: 'compact'});
 }
 
+/* ================= AI assistant (OpenRouter or Gemini, OpenAI-style chat with tools) ================= */
+/* The API key stays on this device (localStorage "docket.ai"); it is never part of the synced data. */
+const AI_PROVIDERS = {
+  openrouter: {name: 'OpenRouter', url: 'https://openrouter.ai/api/v1', model: 'google/gemini-3.8-flash', keyHint: 'sk-or-…', keyUrl: 'https://openrouter.ai/keys'},
+  gemini: {name: 'Google Gemini', url: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-3.8-flash', keyHint: 'AIza…', keyUrl: 'https://aistudio.google.com/apikey'}
+};
+const AI = {provider: 'openrouter', key: '', model: '', busy: false, models: null};
+const aiChat = {messages: [], log: [], undo: null};
+function aiLoad() {
+  try { Object.assign(AI, JSON.parse(localStorage.getItem('docket.ai') || '{}')); } catch (e) {}
+  if (!AI_PROVIDERS[AI.provider]) AI.provider = 'openrouter';
+  try { const c = JSON.parse(localStorage.getItem('docket.aichat') || 'null'); if (c && Array.isArray(c.messages)) { aiChat.messages = c.messages; aiChat.log = c.log || []; } } catch (e) {}
+}
+function aiSave() { try { localStorage.setItem('docket.ai', JSON.stringify({provider: AI.provider, key: AI.key, model: AI.model})); } catch (e) {} }
+function aiSaveChat() { try { localStorage.setItem('docket.aichat', JSON.stringify({messages: aiChat.messages.slice(-40), log: aiChat.log.slice(-60)})); } catch (e) {} }
+const aiReady = () => !!AI.key;
+const aiModel = () => AI.model || AI_PROVIDERS[AI.provider].model;
+
+/* ---- what the assistant can do ---- */
+const fn = (name, description, properties = {}, required = []) => ({type: 'function', function: {name, description, parameters: {type: 'object', properties, required}}});
+const S = (d, extra = {}) => ({type: 'string', description: d, ...extra});
+const AI_TOOLS = [
+  fn('find_cards', 'Search cards by text and/or filters. Returns up to 30 matches with ids.', {query: S('Words to look for in titles and notes (optional)'), board: S('Board name (optional)'), list: S('List name (optional)'), due_before: S('YYYY-MM-DD (optional)'), include_done: {type: 'boolean'}}),
+  fn('get_card', 'Read one card in full (notes, checklist, tags).', {card_id: S('Card id')}, ['card_id']),
+  fn('create_card', 'Create a card (task) on a board. If the list does not exist it is created.', {
+    board: S('Board name; defaults to the board the user is looking at'), list: S('List name; defaults to the first open list'), title: S('Card title'),
+    description: S('Notes (optional)'), due_date: S('YYYY-MM-DD (optional)'), due_time: S('HH:MM 24h (optional)'),
+    priority: S('none, low, medium, high or urgent', {enum: ['none', 'low', 'medium', 'high', 'urgent']}), tags: {type: 'array', items: {type: 'string'}, description: 'Tag names (optional)'},
+    checklist: {type: 'array', items: {type: 'string'}, description: 'Checklist items (optional)'}, pinned: {type: 'boolean'}}, ['title']),
+  fn('update_card', 'Change a card. Only the fields you give are changed.', {
+    card_id: S('Card id'), title: S('New title'), description: S('Replace the notes'), append_description: S('Text to add at the end of the notes'),
+    due_date: S('YYYY-MM-DD, or empty string to clear'), due_time: S('HH:MM, or empty string to clear'), priority: S('none, low, medium, high or urgent', {enum: ['none', 'low', 'medium', 'high', 'urgent']}),
+    add_tags: {type: 'array', items: {type: 'string'}}, remove_tags: {type: 'array', items: {type: 'string'}},
+    add_checklist_items: {type: 'array', items: {type: 'string'}}, done: {type: 'boolean'}, pinned: {type: 'boolean'},
+    move_to_list: S('List name to move the card to'), move_to_board: S('Board name to move the card to')}, ['card_id']),
+  fn('create_list', 'Create a list (column) on a board.', {board: S('Board name'), title: S('List title')}, ['title']),
+  fn('create_event', 'Add a calendar event.', {title: S('Event title'), date: S('YYYY-MM-DD'), start_time: S('HH:MM (omit for all-day)'), end_time: S('HH:MM (optional)'),
+    repeat: S('none, daily, weekly, monthly or yearly', {enum: ['none', 'daily', 'weekly', 'monthly', 'yearly']}), reminder_minutes_before: {type: 'integer', description: 'Minutes before the start to notify; omit for no reminder'}, notes: S('Notes (optional)')}, ['title', 'date']),
+  fn('list_events', 'List calendar events and due cards between two dates.', {from: S('YYYY-MM-DD'), to: S('YYYY-MM-DD')}, ['from', 'to']),
+  fn('set_reminder', 'Send the user a phone notification at a specific local date and time.', {at: S('Local date and time, YYYY-MM-DDTHH:MM'), message: S('What the notification should say'), details: S('Extra line (optional)')}, ['at', 'message'])
+];
+const norm = s => String(s || '').trim().toLowerCase();
+const PRIO_NAMES = ['none', 'low', 'medium', 'high', 'urgent'];
+function aiBoard(x) {
+  if (!x) return currentCat();
+  return state.categories.find(c => c.id === x || norm(c.name) === norm(x)) || state.categories.find(c => norm(c.name).includes(norm(x)) || norm(x).includes(norm(c.name))) || null;
+}
+function aiList(c, x, create) {
+  if (!x) return c.lists.find(l => !l.collapsed && l !== doneListOf(c)) || c.lists[0] || (create ? (c.lists.push(newList('To do')), c.lists[c.lists.length - 1]) : null);
+  let l = c.lists.find(l => l.id === x || norm(l.title) === norm(x)) || c.lists.find(l => norm(l.title).includes(norm(x)));
+  if (!l && create) { l = newList(String(x).slice(0, 80)); c.lists.push(l); }
+  return l || null;
+}
+function aiTags(names) {
+  return (names || []).map(n => {
+    const name = String(n).trim().slice(0, 28); if (!name) return null;
+    let t = state.tags.find(x => norm(x.name) === norm(name));
+    if (!t) { t = {id: uid(), name, color: TAG_COLORS[state.tags.length % TAG_COLORS.length], group: 'Your labels'}; state.tags.push(t); }
+    return t.id;
+  }).filter(Boolean);
+}
+const cardBrief = f => ({id: f.card.id, title: f.card.title, board: f.cat.name, list: f.list.title, due: f.card.due || null, due_time: f.card.dueTime || null, priority: PRIO_NAMES[f.card.priority], done: f.card.done, pinned: f.card.pinned, tags: sortedTags(f.card.tags).map(tagLabel)});
+const validDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') && !isNaN(parseISO(d));
+const validTime = t => /^([01]\d|2[0-3]):[0-5]\d$/.test(t || '');
+function aiRun(name, a) {
+  switch (name) {
+    case 'find_cards': {
+      const q = norm(a.query), out = [];
+      state.categories.forEach(c => { if (a.board && aiBoard(a.board) !== c) return; c.lists.forEach(l => { if (a.list && norm(l.title) !== norm(a.list)) return; l.cards.forEach((k, index) => {
+        if (!a.include_done && k.done) return;
+        if (q && !(norm(k.title).includes(q) || norm(k.desc).includes(q))) return;
+        if (a.due_before && !(k.due && k.due <= a.due_before)) return;
+        out.push(cardBrief({cat: c, list: l, card: k, index}));
+      }); }); });
+      return {count: out.length, cards: out.slice(0, 30)};
+    }
+    case 'get_card': {
+      const f = findCard(a.card_id); if (!f) return {error: 'No card with that id. Use find_cards first.'};
+      return {...cardBrief(f), description: f.card.desc, checklist: f.card.checklist.map(i => ({text: i.text, done: i.done}))};
+    }
+    case 'create_card': {
+      const c = aiBoard(a.board); if (!c) return {error: `No board called "${a.board}". Boards: ${state.categories.map(x => x.name).join(', ')}`};
+      const l = aiList(c, a.list, true);
+      const k = newCard(String(a.title || 'Untitled').slice(0, 300), {desc: String(a.description || ''), due: validDate(a.due_date) ? a.due_date : '', priority: Math.max(0, PRIO_NAMES.indexOf(norm(a.priority))), pinned: !!a.pinned,
+        tags: aiTags(a.tags), checklist: (a.checklist || []).map(t => ({id: uid(), text: String(t).slice(0, 200), done: false}))});
+      if (k.due && validTime(a.due_time)) k.dueTime = a.due_time;
+      l.cards.push(k);
+      return {ok: true, card_id: k.id, board: c.name, list: l.title};
+    }
+    case 'update_card': {
+      const f = findCard(a.card_id); if (!f) return {error: 'No card with that id. Use find_cards first.'};
+      const k = f.card;
+      if (a.title) k.title = String(a.title).slice(0, 300);
+      if (typeof a.description === 'string') k.desc = a.description;
+      if (a.append_description) k.desc = (k.desc ? k.desc.replace(/\s+$/, '') + '\n\n' : '') + a.append_description;
+      if (a.due_date === '') { k.due = ''; k.dueTime = ''; } else if (validDate(a.due_date)) k.due = a.due_date;
+      if (a.due_time === '') k.dueTime = ''; else if (validTime(a.due_time) && k.due) k.dueTime = a.due_time;
+      if (a.priority) k.priority = Math.max(0, PRIO_NAMES.indexOf(norm(a.priority)));
+      if (a.add_tags) aiTags(a.add_tags).forEach(id => { if (!k.tags.includes(id)) k.tags.push(id); });
+      if (a.remove_tags) { const rm = new Set(state.tags.filter(t => a.remove_tags.some(n => norm(n) === norm(t.name))).map(t => t.id)); k.tags = k.tags.filter(id => !rm.has(id)); }
+      if (a.add_checklist_items) a.add_checklist_items.forEach(t => k.checklist.push({id: uid(), text: String(t).slice(0, 200), done: false}));
+      if (typeof a.pinned === 'boolean') k.pinned = a.pinned;
+      if (typeof a.done === 'boolean' && a.done !== k.done) setDone(k, a.done);
+      if (a.move_to_board || a.move_to_list) {
+        const c = a.move_to_board ? aiBoard(a.move_to_board) : findCard(k.id).cat; if (!c) return {error: `No board called "${a.move_to_board}"`};
+        const to = aiList(c, a.move_to_list, true), now = findCard(k.id);
+        if (to !== now.list) { now.list.cards.splice(now.index, 1); to.cards.push(k); }
+      }
+      return {ok: true, card: cardBrief(findCard(k.id))};
+    }
+    case 'create_list': {
+      const c = aiBoard(a.board); if (!c) return {error: `No board called "${a.board}"`};
+      const l = newList(String(a.title).slice(0, 80)); c.lists.push(l);
+      return {ok: true, list_id: l.id, board: c.name};
+    }
+    case 'create_event': {
+      if (!validDate(a.date)) return {error: 'date must be YYYY-MM-DD'};
+      const timed = validTime(a.start_time);
+      const ev = {id: uid(), title: String(a.title).slice(0, 120), date: a.date, endDate: '', allDay: !timed, start: timed ? a.start_time : '09:00', end: timed && validTime(a.end_time) ? a.end_time : '',
+        color: 'ultra', notes: String(a.notes || ''), repeat: ['daily', 'weekly', 'monthly', 'yearly'].includes(a.repeat) ? a.repeat : 'none', remind: Number.isInteger(a.reminder_minutes_before) && a.reminder_minutes_before >= 0 ? a.reminder_minutes_before : -1};
+      state.events.push(ev);
+      return {ok: true, event_id: ev.id, reminder: ev.remind >= 0 ? `${ev.remind} min before` : 'none', notifications_on: notifStatus() === 'on'};
+    }
+    case 'list_events': {
+      if (!validDate(a.from) || !validDate(a.to)) return {error: 'from and to must be YYYY-MM-DD'};
+      const out = []; const d = new Date(parseISO(a.from)), end = parseISO(a.to);
+      for (let i = 0; i < 62 && d.getTime() <= end; i++, d.setDate(d.getDate() + 1)) { const key = dayKey(d.getTime()); itemsOn(key).forEach(it => out.push({date: key, kind: it.kind, title: it.title, time: it.allDay ? 'all day' : it.time + (it.end ? '-' + it.end : ''), done: it.done, id: it.id})); }
+      return {items: out.slice(0, 80)};
+    }
+    case 'set_reminder': {
+      const at = new Date(a.at).getTime();
+      if (!(at > Date.now())) return {error: 'The time must be in the future, as YYYY-MM-DDTHH:MM local time.'};
+      state.reminders.push({id: uid(), at, title: String(a.message).slice(0, 120), body: String(a.details || '').slice(0, 300)});
+      return {ok: true, at: fmtStamp(at), notifications_on: notifStatus() === 'on', reaches_phone_when_closed: notifStatus() === 'on' && pushOn()};
+    }
+  }
+  return {error: 'Unknown tool'};
+}
+const AI_LABEL = {create_card: 'Created card', update_card: 'Updated card', create_list: 'Created list', create_event: 'Added event', set_reminder: 'Set reminder'};
+function aiSystemPrompt() {
+  const now = new Date();
+  const boards = state.categories.map(c => `- ${c.name}: ${c.lists.map(l => `${l.title} (${l.cards.filter(k => !k.done).length} open)`).join(', ')}`).join('\n');
+  return `You are the assistant inside Docket, the user's to-do, calendar and work-hours app. You act on their data with the tools.
+Now: ${now.toLocaleString('en-GB', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'})} (local time, ${Intl.DateTimeFormat().resolvedOptions().timeZone}). Today is ${isoDay(0)}.
+The user is looking at the board "${currentCat().name}".
+Boards and lists:
+${boards}
+Tags: ${state.tags.map(t => t.name).filter(Boolean).join(', ')}
+Rules: Use tools to make changes; never claim a change you did not make with a tool. Find a card with find_cards before updating it. You cannot delete anything: tell the user to delete it themselves. Resolve relative dates ("tomorrow", "Friday") into exact dates. For reminders use set_reminder; if it reports notifications_on false, tell the user to turn on notifications in Settings. Keep replies short and friendly, and answer in the user's language (often English or Czech). Plain text with short lists is fine.`;
+}
+async function aiCall(messages) {
+  const p = AI_PROVIDERS[AI.provider];
+  const headers = {'Content-Type': 'application/json', Authorization: `Bearer ${AI.key}`};
+  if (AI.provider === 'openrouter') { headers['HTTP-Referer'] = location.origin + location.pathname; headers['X-Title'] = 'Docket'; }
+  const res = await fetch(`${p.url}/chat/completions`, {method: 'POST', headers, body: JSON.stringify({model: aiModel(), messages, tools: AI_TOOLS, tool_choice: 'auto', temperature: 0.3})});
+  let data = null; try { data = await res.json(); } catch (e) {}
+  if (!res.ok) {
+    const msg = (data && (data.error && (data.error.message || data.error)) || (Array.isArray(data) && data[0] && data[0].error && data[0].error.message)) || res.statusText;
+    throw new Error(res.status === 401 || res.status === 403 ? `${p.name} rejected the API key (${res.status}). Check it in Settings → AI assistant.` : res.status === 429 ? `${p.name} says you are sending too many requests or are out of credit (429).` : `${p.name} error ${res.status}: ${String(msg).slice(0, 200)}`);
+  }
+  const msg = data && data.choices && data.choices[0] && data.choices[0].message;
+  if (!msg) throw new Error('The model sent an empty answer. Try again or pick another model.');
+  return msg;
+}
+/* one user turn: send, run any tool calls, repeat (max 6 rounds), keep a snapshot so the turn can be undone */
+async function aiSend(text, redraw) {
+  if (AI.busy || !text.trim()) return;
+  AI.busy = true;
+  const snapshot = JSON.stringify(state);
+  let changed = false;
+  aiChat.messages.push({role: 'user', content: text});
+  aiChat.log.push({who: 'user', text});
+  redraw();
+  try {
+    for (let round = 0; round < 6; round++) {
+      const history = aiChat.messages.slice(-30);
+      while (history.length && history[0].role === 'tool') history.shift();
+      const msg = await aiCall([{role: 'system', content: aiSystemPrompt()}, ...history]);
+      const calls = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
+      aiChat.messages.push({role: 'assistant', content: msg.content || '', ...(calls.length ? {tool_calls: calls} : {})});
+      if (!calls.length) { aiChat.log.push({who: 'ai', text: msg.content || '(no answer)', undo: changed}); break; }
+      for (const c of calls) {
+        let args = {};
+        try { args = JSON.parse(c.function && c.function.arguments || '{}'); } catch (e) {}
+        let result;
+        try { result = aiRun(c.function && c.function.name, args); } catch (e) { result = {error: String(e.message || e)}; }
+        if (result && result.ok && AI_LABEL[c.function.name]) {
+          changed = true;
+          const what = args.title || args.message || (result.card && result.card.title) || '';
+          aiChat.log.push({who: 'act', text: `${AI_LABEL[c.function.name]}${what ? ': ' + what : ''}${result.board ? ` (${result.board}${result.list ? ' · ' + result.list : ''})` : ''}${result.at ? ' · ' + result.at : ''}`});
+        }
+        aiChat.messages.push({role: 'tool', tool_call_id: c.id, content: JSON.stringify(result).slice(0, 6000)});
+      }
+      if (changed) commit();
+      redraw();
+      if (round === 5) aiChat.log.push({who: 'ai', text: 'I stopped after several steps. Tell me if you want me to continue.', undo: changed});
+    }
+  } catch (e) {
+    aiChat.log.push({who: 'err', text: e.message || String(e)});
+    if (changed) aiChat.log.push({who: 'ai', text: 'Some changes were made before the error.', undo: true});
+  }
+  aiChat.undo = changed ? snapshot : null;
+  AI.busy = false;
+  aiSaveChat(); redraw();
+}
+const aiFormat = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/^[-*] (.+)$/gm, '• $1').replace(/\n/g, '<br>');
+
+function openAssistant() {
+  openSheet(inner => {
+    const draw = () => {
+      const keep = $('#ai-input', inner) ? $('#ai-input', inner).value : '';
+      const last = aiChat.log.length - 1;
+      inner.innerHTML = `<div class="ai-top sheet-drag"><b>${icon('sparkle')}Assistant</b><small class="mono muted">${aiReady() ? esc(aiModel()) : ''}</small><span class="grow"></span>`
+        + (aiChat.log.length ? `<button type="button" class="btn sm" data-x="clear">New chat</button>` : '') + `<button type="button" class="icon-btn" data-x="settings" aria-label="Assistant settings">${icon('dotsV')}</button></div>`
+        + (!aiReady() ? `<div class="ai-empty"><p class="sheet-text">Connect an AI model to create tasks, write notes and checklists, plan your week and set reminders by just asking.</p><button type="button" class="btn primary" data-x="settings">Set up the assistant</button></div>`
+          : `<div class="ai-log" id="ai-log">` + (aiChat.log.length ? aiChat.log.map((m, i) =>
+              m.who === 'user' ? `<div class="ai-msg me">${aiFormat(m.text)}</div>`
+              : m.who === 'act' ? `<div class="ai-act">${icon('check')}${esc(m.text)}</div>`
+              : m.who === 'err' ? `<div class="ai-msg err">${esc(m.text)}</div>`
+              : `<div class="ai-msg">${aiFormat(m.text)}${m.undo && i === last && aiChat.undo ? `<div><button type="button" class="link" data-x="undo">Undo these changes</button></div>` : ''}</div>`).join('')
+            : `<div class="ai-empty"><p class="sheet-hint">Try:</p>` + ['Add “Buy cables” to Work for Friday, high priority', 'Write a checklist for the magnets task', 'Remind me tomorrow at 9:00 to call the supplier', 'What is due this week?', 'Add a dentist appointment on Thursday at 14:00 with a reminder 1 hour before']
+                .map(sg => `<button type="button" class="fchip ai-sg" data-sg="${esc(sg)}">${esc(sg)}</button>`).join('') + `</div>`)
+            + (AI.busy ? `<div class="ai-msg typing"><i></i><i></i><i></i></div>` : '') + `</div>`
+            + `<form class="ai-form" data-form="ai" novalidate><textarea id="ai-input" class="field" rows="1" placeholder="Ask or tell me what to do…" aria-label="Message the assistant"${AI.busy ? ' disabled' : ''}>${esc(keep)}</textarea>`
+            + `<button type="submit" class="btn primary" aria-label="Send"${AI.busy ? ' disabled' : ''}>${icon('send')}</button></form>`);
+      const log = $('#ai-log', inner); if (log) inner.scrollTop = inner.scrollHeight;
+      autosize($('#ai-input', inner));
+    };
+    draw();
+    const send = () => { const ta = $('#ai-input', inner); const v = ta ? ta.value.trim() : ''; if (!v) return; ta.value = ''; aiSend(v, draw); };
+    inner.addEventListener('submit', e => { if (e.target.matches('[data-form="ai"]')) { e.preventDefault(); send(); } });
+    inner.addEventListener('keydown', e => { if (e.target.id === 'ai-input' && e.key === 'Enter' && !e.shiftKey && !e.isComposing && wide.matches) { e.preventDefault(); send(); } });
+    inner.addEventListener('input', e => { if (e.target.id === 'ai-input') autosize(e.target); });
+    inner.addEventListener('click', e => {
+      const sg = e.target.closest('[data-sg]'); if (sg) { const ta = $('#ai-input', inner); ta.value = sg.dataset.sg; ta.focus(); return; }
+      const x = e.target.closest('[data-x]'); if (!x) return;
+      if (x.dataset.x === 'settings') openAISettings(() => openAssistant());
+      else if (x.dataset.x === 'clear') { aiChat.messages = []; aiChat.log = []; aiChat.undo = null; aiSaveChat(); draw(); }
+      else if (x.dataset.x === 'undo' && aiChat.undo) { state = normalize(JSON.parse(aiChat.undo)); aiChat.undo = null; commit(); aiChat.log.push({who: 'act', text: 'Undid the last changes'}); aiChat.messages.push({role: 'user', content: '(I undid all the changes you made in your last answer.)'}); aiSaveChat(); draw(); }
+    });
+  }, {cls: 'tall'});
+}
+
+function openAISettings(back) {
+  openSheet((inner, close) => {
+    const draw = () => {
+      const p = AI_PROVIDERS[AI.provider];
+      inner.innerHTML = `<form novalidate><h2 class="sheet-title sheet-drag">AI assistant</h2>`
+        + `<p class="sheet-text">Use your own API key. It is stored only on this device and sent only to ${esc(p.name)}.</p><div class="form-grid">`
+        + `<div class="fld full"><span class="lbl">Provider</span><div class="chips">${Object.entries(AI_PROVIDERS).map(([k, v]) => `<button type="button" class="fchip${AI.provider === k ? ' on' : ''}" data-prov="${k}">${v.name}</button>`).join('')}</div></div>`
+        + `<div class="fld full"><label for="ai-key">API key</label><input id="ai-key" class="field" type="password" value="${esc(AI.key)}" placeholder="${p.keyHint}" autocomplete="off" spellcheck="false"></div>`
+        + `<p class="sheet-hint full" style="margin:0">Get a key at <a href="${p.keyUrl}" target="_blank" rel="noopener">${p.keyUrl.replace('https://', '')}</a>.</p>`
+        + `<div class="fld full"><label for="ai-model">Model</label><input id="ai-model" class="field" list="ai-models" value="${esc(aiModel())}" autocomplete="off" spellcheck="false"><datalist id="ai-models">${(AI.models || []).map(m => `<option value="${esc(m)}">`).join('')}</datalist></div>`
+        + `</div><p class="sheet-hint" id="ai-msg" aria-live="polite"></p>`
+        + `<div class="sheet-actions"><button type="button" class="btn" data-x="models">Load models</button>${AI.key ? `<button type="button" class="btn danger" data-x="forget">Remove key</button>` : ''}<span class="grow"></span><button type="submit" class="btn primary">Save and test</button></div></form>`;
+    };
+    draw();
+    const msg = t => { const el = $('#ai-msg', inner); if (el) el.textContent = t; };
+    const readForm = () => { AI.key = $('#ai-key', inner).value.trim(); AI.model = $('#ai-model', inner).value.trim(); };
+    inner.addEventListener('click', async e => {
+      const pv = e.target.closest('[data-prov]');
+      if (pv) { readForm(); if (pv.dataset.prov !== AI.provider) { AI.provider = pv.dataset.prov; AI.key = ''; AI.model = ''; AI.models = null; } draw(); return; }
+      const x = e.target.closest('[data-x]'); if (!x) return;
+      if (x.dataset.x === 'forget') { AI.key = ''; aiSave(); draw(); toast('API key removed from this device'); }
+      else if (x.dataset.x === 'models') {
+        readForm(); msg('Loading models…');
+        try {
+          const p = AI_PROVIDERS[AI.provider];
+          const res = await fetch(`${p.url}/models`, {headers: AI.provider === 'gemini' || AI.key ? {Authorization: `Bearer ${AI.key}`} : {}});
+          if (!res.ok) throw new Error(res.status === 401 || res.status === 403 ? 'The key was rejected.' : 'Error ' + res.status);
+          const d = await res.json();
+          const list = (d.data || []).filter(m => AI.provider !== 'openrouter' || (m.supported_parameters || []).includes('tools')).map(m => String(m.id).replace(/^models\//, ''));
+          AI.models = list.slice(0, 400); const keepM = $('#ai-model', inner).value; draw(); $('#ai-model', inner).value = keepM;
+          msg(`${list.length} models that can use tools. Tap the model field to pick one.`);
+        } catch (err) { msg('Couldn’t load models: ' + err.message); }
+      }
+    });
+    inner.addEventListener('submit', async e => {
+      e.preventDefault(); readForm();
+      if (!AI.key) { msg('Paste your API key.'); return; }
+      msg('Testing…');
+      try {
+        const r = await aiCall([{role: 'user', content: 'Reply with the single word: ready'}]);
+        aiSave(); msg(`Works. The model replied “${String(r.content || '').trim().slice(0, 40)}”.`); toast('Assistant connected');
+        setTimeout(() => { close(); if (back) back(); }, 700);
+      } catch (err) { msg(err.message); }
+    });
+  }, {cls: 'compact'});
+}
+
 /* ================= copy a card to any list on any board ================= */
 function openCopySheet(cardId, back) {
   const f = findCard(cardId); if (!f) return;
@@ -3875,7 +4193,7 @@ window.docketDebug = {reminderItems: () => reminderItems(), health: () => notifH
 const activeTab = tabsEl.querySelector('.tab.is-active'); if (activeTab) activeTab.scrollIntoView({inline: 'nearest', block: 'nearest'});
 if (pr().endsAt) tick();
 fsInit();
-ghLoadCfg(); ghPull();
+ghLoadCfg(); ghPull(); aiLoad();
 /* home-screen shortcuts open straight into the timer panel */
 if (location.hash === '#focus' || location.hash === '#hours') { const tab = location.hash.slice(1); history.replaceState(null, '', location.pathname + location.search); openTimePanel(tab); }
 })();

@@ -4,7 +4,7 @@ Read this first when you continue the project in a new conversation. It records 
 
 **To continue in a new chat:** give the assistant this file (or its link, https://github.com/EthEcho-UI/docket/blob/main/HANDOFF.md) and say what you want next. If the assistant runs on the user's server (Claude Code), the full project also lives in `~/Documents/AgentWorkspace/projects/kanban-todo-app/`.
 
-_Last updated: 2026-10-06._
+_Last updated: 2026-10-06 (push server live, AI assistant added)._
 
 ---
 
@@ -31,6 +31,7 @@ A phone-first, Trello-style to-do app built as an installable web app (PWA). It 
 - **Look:** 34 themes in groups (Classic, Bold, Cozy, Pastel incl. Catppuccin and Rosé Pine, Editor incl. Nord/Dracula/Gruvbox/Solarized, Monochrome incl. Ink/Noir/Manga, Illustrated), plus an **accent colour** picker (10 presets or custom). Default accent is blue.
 - **Haptics** (Settings → Haptics): on/off and Light/Medium/Strong. They only work in Chrome on Android, not in iOS or Safari.
 - **Sync:** data always lives in the browser (localStorage key `docket.v1`). Optional **GitHub sync** (Settings → GitHub sync: per-device fine-grained token, repo `EthEcho-UI/docket-data`, Contents read+write) and optional **sync folder** (File System Access API). Backup/restore as a JSON file.
+- **AI assistant:** chat that creates and edits cards, lists and events and sets reminders (OpenRouter or Gemini, your own key).
 - **Installable:** manifest, icons (grey and white ticket with a check), offline app shell, home-screen shortcuts (#focus, #hours), Android back button closes the top panel.
 
 ## 3. Architecture
@@ -86,5 +87,5 @@ Source: `projects/kanban-todo-app/output/push-worker/` on the user's machine (no
 ## 8. Next steps (in order)
 
 1. Done: push server deployed. On each device, open Settings → Notifications and tap Turn on (or Fix) once so the device registers.
-2. **AI assistant (requested):** settings for an **OpenRouter** and/or **Google Gemini** API key (stored on the device only), a chat sheet, and tool-calling so it can create/edit cards (descriptions, checklists, notes, tags, priority, due), create events, and set one-off reminders (`state.reminders`, which the push schedule already sends). Check the current API docs and model names before building, and confirm both APIs allow calls from the browser (CORS).
+2. Done: **AI assistant** (sparkle button, key A; Settings → AI assistant). It works with OpenRouter or Gemini through their OpenAI-compatible `/chat/completions` endpoints (both allow browser calls, checked 2026-10-06). The key is stored on the device only (`docket.ai`), and the chat history too (`docket.aichat`). Tools: find_cards, get_card, create_card, update_card, create_list, create_event, list_events, set_reminder. It cannot delete anything. Each reply that changed data can be undone. Tested with a mocked model (`tests/smoke12.js`). **It has not been run against a real model with a real key yet, so the first real use is the real test.**
 3. Possible later: per-field sync merge instead of last-writer-wins; week view in the calendar.
