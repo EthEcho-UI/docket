@@ -516,6 +516,10 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 .ai-form .btn{height:46px;width:52px;padding:0}
 @media (min-width:760px){.ai-form{margin:0 -24px;padding:10px 24px 14px;bottom:-24px}}
 
+.key-ok{display:inline-grid;color:var(--good)}
+.fchip.on .key-ok{color:inherit}
+.key-ok .ic{width:14px;height:14px}
+
 /* ---------- theme picker ---------- */
 .themes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 @media (min-width:520px){.themes{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -3718,20 +3722,52 @@ function openCalTaskSheet(date, back) {
 /* ================= AI assistant (OpenRouter or Gemini, OpenAI-style chat with tools) ================= */
 /* The API key stays on this device (localStorage "docket.ai"); it is never part of the synced data. */
 const AI_PROVIDERS = {
-  openrouter: {name: 'OpenRouter', url: 'https://openrouter.ai/api/v1', model: 'google/gemini-3.8-flash', keyHint: 'sk-or-…', keyUrl: 'https://openrouter.ai/keys'},
-  gemini: {name: 'Google Gemini', url: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-3.8-flash', keyHint: 'AIza…', keyUrl: 'https://aistudio.google.com/apikey'}
+  openrouter: {name: 'OpenRouter', url: 'https://openrouter.ai/api/v1', model: 'google/gemini-3.8-flash', keyHint: 'sk-or-…', keyUrl: 'https://openrouter.ai/keys',
+    recommended: ['google/gemini-3.8-flash', 'anthropic/claude-sonnet-5.5', 'openai/gpt-6.1-sol', 'google/gemini-3.7-flash']},
+  gemini: {name: 'Google Gemini', url: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-3.8-flash', keyHint: 'AIza…', keyUrl: 'https://aistudio.google.com/apikey',
+    recommended: ['gemini-3.8-flash', 'gemini-3.7-flash']}
 };
-const AI = {provider: 'openrouter', key: '', model: '', busy: false, models: null};
+/* keys, chosen models and custom instructions stay on this device ("docket.ai"); each provider keeps its own key and model */
+const AI = {provider: 'openrouter', keys: {}, models: {}, custom: '', busy: false};
 const aiChat = {messages: [], log: [], undo: null};
+let aiModelCache = {};
 function aiLoad() {
-  try { Object.assign(AI, JSON.parse(localStorage.getItem('docket.ai') || '{}')); } catch (e) {}
-  if (!AI_PROVIDERS[AI.provider]) AI.provider = 'openrouter';
+  try {
+    const c = JSON.parse(localStorage.getItem('docket.ai') || '{}');
+    AI.provider = AI_PROVIDERS[c.provider] ? c.provider : 'openrouter';
+    AI.keys = c.keys && typeof c.keys === 'object' ? c.keys : {};
+    AI.models = c.models && typeof c.models === 'object' ? c.models : {};
+    AI.custom = String(c.custom || '');
+    /* older single-key format */
+    if (c.key && !AI.keys[AI.provider]) AI.keys[AI.provider] = c.key;
+    if (c.model && typeof c.model === 'string' && !AI.models[AI.provider]) AI.models[AI.provider] = c.model;
+  } catch (e) {}
+  try { aiModelCache = JSON.parse(localStorage.getItem('docket.aimodels') || '{}') || {}; } catch (e) { aiModelCache = {}; }
   try { const c = JSON.parse(localStorage.getItem('docket.aichat') || 'null'); if (c && Array.isArray(c.messages)) { aiChat.messages = c.messages; aiChat.log = c.log || []; } } catch (e) {}
 }
-function aiSave() { try { localStorage.setItem('docket.ai', JSON.stringify({provider: AI.provider, key: AI.key, model: AI.model})); } catch (e) {} }
+function aiSave() { try { localStorage.setItem('docket.ai', JSON.stringify({provider: AI.provider, keys: AI.keys, models: AI.models, custom: AI.custom})); } catch (e) {} }
 function aiSaveChat() { try { localStorage.setItem('docket.aichat', JSON.stringify({messages: aiChat.messages.slice(-40), log: aiChat.log.slice(-60)})); } catch (e) {} }
-const aiReady = () => !!AI.key;
-const aiModel = () => AI.model || AI_PROVIDERS[AI.provider].model;
+const aiKey = (prov = AI.provider) => AI.keys[prov] || '';
+const aiReady = () => !!aiKey();
+const aiModel = () => AI.models[AI.provider] || AI_PROVIDERS[AI.provider].model;
+/* the provider's live model list (only models that can use tools), cached for a day */
+async function aiFetchModels(prov, force) {
+  const cached = aiModelCache[prov];
+  if (!force && cached && Date.now() - cached.at < 864e5 && cached.items.length) return cached.items;
+  const p = AI_PROVIDERS[prov], key = aiKey(prov);
+  if (prov === 'gemini' && !key) return [];
+  const res = await fetch(`${p.url}/models`, {headers: key ? {Authorization: `Bearer ${key}`} : {}});
+  if (!res.ok) throw new Error(res.status === 400 || res.status === 401 || res.status === 403 ? 'the key was rejected' : 'error ' + res.status);
+  const d = await res.json();
+  const items = (d.data || []).filter(m => prov !== 'openrouter' || (m.supported_parameters || []).includes('tools')).map(m => {
+    const id = String(m.id).replace(/^models\//, '');
+    const pin = m.pricing ? Number(m.pricing.prompt) * 1e6 : NaN, pout = m.pricing ? Number(m.pricing.completion) * 1e6 : NaN;
+    return {id, name: m.name || id, free: m.pricing ? pin === 0 && pout === 0 : false, price: Number.isFinite(pin) ? (pin === 0 && pout === 0 ? 'free' : `$${+pin.toFixed(2)} / $${+pout.toFixed(2)} per M tokens`) : '', ctx: m.context_length || 0, created: m.created || 0};
+  }).filter(m => prov !== 'gemini' || /gemini|gemma/i.test(m.id));
+  aiModelCache[prov] = {at: Date.now(), items};
+  try { localStorage.setItem('docket.aimodels', JSON.stringify(aiModelCache)); } catch (e) {}
+  return items;
+}
 
 /* ---- what the assistant can do ---- */
 const fn = (name, description, properties = {}, required = []) => ({type: 'function', function: {name, description, parameters: {type: 'object', properties, required}}});
@@ -3855,19 +3891,65 @@ function aiRun(name, a) {
 }
 const AI_LABEL = {create_card: 'Created card', update_card: 'Updated card', create_list: 'Created list', create_event: 'Added event', set_reminder: 'Set reminder'};
 function aiSystemPrompt() {
-  const now = new Date();
-  const boards = state.categories.map(c => `- ${c.name}: ${c.lists.map(l => `${l.title} (${l.cards.filter(k => !k.done).length} open)`).join(', ')}`).join('\n');
-  return `You are the assistant inside Docket, the user's to-do, calendar and work-hours app. You act on their data with the tools.
-Now: ${now.toLocaleString('en-GB', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'})} (local time, ${Intl.DateTimeFormat().resolvedOptions().timeZone}). Today is ${isoDay(0)}.
-The user is looking at the board "${currentCat().name}".
-Boards and lists:
+  const now = new Date(), tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const week = Array.from({length: 8}, (_, i) => { const d = new Date(); d.setDate(d.getDate() + i); return `${i === 0 ? 'today' : i === 1 ? 'tomorrow' : d.toLocaleDateString('en-GB', {weekday: 'long'})} = ${dayKey(d.getTime())}`; }).join(', ');
+  const boards = state.categories.map(c => {
+    const dl = doneListOf(c);
+    return `- Board "${c.name}"${c.id === state.active ? ' (currently open)' : ''}: ` + c.lists.map(l => `"${l.title}"${l === dl ? ' [Done column]' : ''} (${l.cards.filter(k => !k.done).length} open${l.sort !== 'manual' ? ', sorted by ' + l.sort : ''})`).join(', ');
+  }).join('\n');
+  const tagGroupsText = tagGroups().map(g => `${g}: ${state.tags.filter(t => t.group === g && t.name).map(t => t.name).join(', ')}`).join('; ');
+  const upcoming = [];
+  for (let i = 0; i < 7 && upcoming.length < 15; i++) { const d = new Date(); d.setDate(d.getDate() + i); const key = dayKey(d.getTime()); itemsOn(key).filter(it => !it.done).forEach(it => upcoming.push(`${key} ${it.allDay ? '' : it.time + ' '}${it.kind === 'event' ? 'event' : 'task'}: ${it.title}`)); }
+  const notif = notifStatus() === 'on' ? (pushOn() ? 'on, and they reach the phone even when Docket is closed' : 'on, but only while Docket is open') : 'OFF';
+  return `# Role
+You are the built-in assistant of Docket, the user's personal to-do, calendar and work-hours app. You help by actually changing their data with the tools below, and by answering questions about it. You are practical, quick and careful.
+
+# How Docket works
+- Boards (also called categories) are the tabs at the top. Each board has lists (columns); lists hold cards (tasks).
+- A card has: title, notes (description), checklist, tags, priority (none/low/medium/high/urgent), pin (pinned cards stay at the top of their list), due date with an optional time, and done state.
+- Finishing a card (done=true) moves it to its board's Done column; un-finishing moves it back. Lists can be sorted manually, by priority or by due date.
+- Tags are shared by all boards and grouped (Priority, Status, Type, Effort, Area, Your labels). Unknown tag names are created automatically, so prefer existing tags.
+- The calendar shows cards on their due date and separate events (all-day or timed, can repeat, can have a reminder).
+- Notifications: cards remind at their due time (or in the morning if they have no time), events remind at their own reminder, and set_reminder sends a one-off notification at an exact time.
+- Work hours, jobs, timers, themes and settings exist in the app but you cannot change them; tell the user where to find them (timer button at the top, Settings).
+
+# Right now
+- Local time: ${now.toLocaleString('en-GB', {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'})} (${tz}).
+- Dates this week: ${week}.
+- Notifications are ${notif}.
+- Boards and lists:
 ${boards}
-Tags: ${state.tags.map(t => t.name).filter(Boolean).join(', ')}
-Rules: Use tools to make changes; never claim a change you did not make with a tool. Find a card with find_cards before updating it. You cannot delete anything: tell the user to delete it themselves. Resolve relative dates ("tomorrow", "Friday") into exact dates. For reminders use set_reminder; if it reports notifications_on false, tell the user to turn on notifications in Settings. Keep replies short and friendly, and answer in the user's language (often English or Czech). Plain text with short lists is fine.`;
+- Tags: ${tagGroupsText || 'none yet'}
+- Coming up in the next 7 days: ${upcoming.length ? '\n  ' + upcoming.join('\n  ') : 'nothing'}
+
+# How to work
+1. Work out what the user wants. If they list several things, do all of them (several tool calls are fine).
+2. Before changing an existing card, find it with find_cards (or use the card_id from earlier in this conversation). Never invent ids. If several cards match, pick the obvious one or ask which.
+3. When the board or list is not said, use the open board and its first open list, or the list whose name fits best. Ask only when a wrong guess would be a real problem.
+4. Turn relative dates and times into exact ones using the dates above ("Friday", "next week" = next Monday, "in 2 hours", "tonight" = 19:00, "morning" = 09:00). Times are 24-hour local time.
+5. "Remind me…" means set_reminder at that time. A deadline for a task means due_date (+ due_time if a time is given). An appointment or meeting means create_event (add a reminder if the user asks for one or it clearly helps).
+6. After acting, reply in one or two short sentences saying what you did and where (board, list, date and time). If notifications are OFF and you set a reminder, tell them to turn notifications on in Settings → Notifications.
+
+# Writing content
+- Titles: short and specific, starting with a verb when it is a task ("Order magnets for the vault door").
+- Notes: practical and brief, as useful facts, steps or links; no filler.
+- Checklists: 3–8 concrete steps in order, each starting with a verb.
+- Keep the user's own wording and language for names and titles.
+
+# Limits
+- You cannot delete boards, lists, cards or events; tell the user how to do it themselves (open the card → Delete card, or the list's ⋯ menu).
+- You cannot browse the internet or see files. Say so if asked.
+- Never claim you did something you did not do with a tool. If a tool returns an error, fix the call or explain the problem.
+
+# Style
+Answer in the user's language (often English or Czech). Be short and friendly. Use plain sentences and simple bullet lists; no tables or headings.${AI.custom.trim() ? `
+
+# The user's own instructions (follow these)
+${AI.custom.trim()}` : ''}`;
 }
 async function aiCall(messages) {
   const p = AI_PROVIDERS[AI.provider];
-  const headers = {'Content-Type': 'application/json', Authorization: `Bearer ${AI.key}`};
+  const headers = {'Content-Type': 'application/json', Authorization: `Bearer ${aiKey()}`};
   if (AI.provider === 'openrouter') { headers['HTTP-Referer'] = location.origin + location.pathname; headers['X-Title'] = 'Docket'; }
   const res = await fetch(`${p.url}/chat/completions`, {method: 'POST', headers, body: JSON.stringify({model: aiModel(), messages, tools: AI_TOOLS, tool_choice: 'auto', temperature: 0.3})});
   let data = null; try { data = await res.json(); } catch (e) {}
@@ -3959,47 +4041,77 @@ function openAssistant() {
 }
 
 function openAISettings(back) {
+  let models = null, loadErr = '', filter = '';
   openSheet((inner, close) => {
+    const modelSelectHTML = () => {
+      const p = AI_PROVIDERS[AI.provider], cur = aiModel();
+      const all = models || [], f = filter.trim().toLowerCase();
+      const pick = all.filter(m => !f || m.id.toLowerCase().includes(f) || m.name.toLowerCase().includes(f));
+      const opt = m => `<option value="${esc(m.id)}"${m.id === cur ? ' selected' : ''}>${esc(m.name)}${m.price ? ' · ' + esc(m.price) : ''}</option>`;
+      const groups = [];
+      const rec = p.recommended.map(id => pick.find(m => m.id === id)).filter(Boolean);
+      if (rec.length) groups.push(['Recommended', rec]);
+      const free = pick.filter(m => m.free && !p.recommended.includes(m.id));
+      if (free.length) groups.push(['Free', free]);
+      const rest = pick.filter(m => !m.free && !p.recommended.includes(m.id));
+      const byVendor = new Map();
+      rest.sort((a, b) => a.name.localeCompare(b.name)).forEach(m => { const v = AI.provider === 'openrouter' ? (m.name.split(':')[0] || m.id.split('/')[0]) : 'Gemini models'; if (!byVendor.has(v)) byVendor.set(v, []); byVendor.get(v).push(m); });
+      [...byVendor].sort((a, b) => a[0].localeCompare(b[0])).forEach(g => groups.push(g));
+      const inList = all.some(m => m.id === cur);
+      return `<select id="ai-model" class="select">${!inList ? `<option value="${esc(cur)}" selected>${esc(cur)}${models ? ' (not in the list)' : ''}</option>` : ''}`
+        + groups.map(([g, ms]) => `<optgroup label="${esc(g)}">${ms.map(opt).join('')}</optgroup>`).join('') + `</select>`;
+    };
     const draw = () => {
       const p = AI_PROVIDERS[AI.provider];
       inner.innerHTML = `<form novalidate><h2 class="sheet-title sheet-drag">AI assistant</h2>`
-        + `<p class="sheet-text">Use your own API key. It is stored only on this device and sent only to ${esc(p.name)}.</p><div class="form-grid">`
-        + `<div class="fld full"><span class="lbl">Provider</span><div class="chips">${Object.entries(AI_PROVIDERS).map(([k, v]) => `<button type="button" class="fchip${AI.provider === k ? ' on' : ''}" data-prov="${k}">${v.name}</button>`).join('')}</div></div>`
-        + `<div class="fld full"><label for="ai-key">API key</label><input id="ai-key" class="field" type="password" value="${esc(AI.key)}" placeholder="${p.keyHint}" autocomplete="off" spellcheck="false"></div>`
-        + `<p class="sheet-hint full" style="margin:0">Get a key at <a href="${p.keyUrl}" target="_blank" rel="noopener">${p.keyUrl.replace('https://', '')}</a>.</p>`
-        + `<div class="fld full"><label for="ai-model">Model</label><input id="ai-model" class="field" list="ai-models" value="${esc(aiModel())}" autocomplete="off" spellcheck="false"><datalist id="ai-models">${(AI.models || []).map(m => `<option value="${esc(m)}">`).join('')}</datalist></div>`
+        + `<p class="sheet-text">Use your own API keys. They are stored only on this device, each provider keeps its own key, and a key is only sent to its provider.</p><div class="form-grid">`
+        + `<div class="fld full"><span class="lbl">Use</span><div class="chips">${Object.entries(AI_PROVIDERS).map(([k, v]) => `<button type="button" class="fchip${AI.provider === k ? ' on' : ''}" data-prov="${k}">${v.name}${aiKey(k) ? ` <span class="key-ok" title="Key saved">${icon('check')}</span>` : ''}</button>`).join('')}</div></div>`
+        + `<div class="fld full"><label for="ai-key">${esc(p.name)} API key</label><input id="ai-key" class="field" type="password" value="${esc(aiKey())}" placeholder="${p.keyHint}" autocomplete="off" spellcheck="false"></div>`
+        + `<p class="sheet-hint full" style="margin:0">Get a key at <a href="${p.keyUrl}" target="_blank" rel="noopener">${p.keyUrl.replace('https://', '')}</a>.${aiKey() ? ' <button type="button" class="link" data-x="forget">Remove this key</button>' : ''}</p>`
+        + `<div class="fld full"><label for="ai-model">Model</label>`
+        + (models && models.length > 12 ? `<input id="ai-filter" class="field sm" placeholder="Filter, e.g. claude, gemini, free" value="${esc(filter)}" autocomplete="off" style="margin-bottom:6px">` : '')
+        + `<span class="select-wrap block">${modelSelectHTML()}</span>`
+        + `<p class="sheet-hint" style="margin-top:6px">${models ? `${models.length} models that can use tools.` : loadErr ? 'Couldn’t load the list: ' + esc(loadErr) + '.' : AI.provider === 'gemini' && !aiKey() ? 'Paste your key to see the models.' : 'Loading models…'} <button type="button" class="link" data-x="reload">Refresh list</button></p></div>`
+        + `<div class="fld full"><label for="ai-custom">Your instructions (optional)</label><textarea id="ai-custom" class="field area" rows="3" placeholder="e.g. My main board is Maintenance. Answer in Czech. I work at Mindmaze on weekdays.">${esc(AI.custom)}</textarea></div>`
         + `</div><p class="sheet-hint" id="ai-msg" aria-live="polite"></p>`
-        + `<div class="sheet-actions"><button type="button" class="btn" data-x="models">Load models</button>${AI.key ? `<button type="button" class="btn danger" data-x="forget">Remove key</button>` : ''}<span class="grow"></span><button type="submit" class="btn primary">Save and test</button></div></form>`;
+        + `<div class="sheet-actions"><span class="grow"></span><button type="submit" class="btn primary">Save and test</button></div></form>`;
+      autosize($('#ai-custom', inner));
     };
-    draw();
+    const keep = () => { const k = $('#ai-key', inner), m = $('#ai-model', inner), c = $('#ai-custom', inner);
+      if (k) { const v = k.value.trim(); if (v) AI.keys[AI.provider] = v; }
+      if (m && m.value) AI.models[AI.provider] = m.value;
+      if (c) AI.custom = c.value; };
+    const load = async force => {
+      models = null; loadErr = ''; draw();
+      try { models = await aiFetchModels(AI.provider, force); if (!models.length && AI.provider === 'gemini' && !aiKey()) models = null; }
+      catch (e) { loadErr = e.message; models = null; }
+      if (inner.isConnected) draw();
+    };
     const msg = t => { const el = $('#ai-msg', inner); if (el) el.textContent = t; };
-    const readForm = () => { AI.key = $('#ai-key', inner).value.trim(); AI.model = $('#ai-model', inner).value.trim(); };
-    inner.addEventListener('click', async e => {
+    draw(); load(false);
+    inner.addEventListener('input', e => {
+      if (e.target.id === 'ai-filter') { filter = e.target.value; keep(); const pos = e.target.selectionStart; draw(); const fl = $('#ai-filter', inner); fl.focus(); fl.setSelectionRange(pos, pos); }
+      else if (e.target.id === 'ai-custom') autosize(e.target);
+    });
+    inner.addEventListener('change', e => {
+      if (e.target.id === 'ai-model') { AI.models[AI.provider] = e.target.value; aiSave(); }
+      else if (e.target.id === 'ai-key' && AI.provider === 'gemini' && e.target.value.trim()) { keep(); aiSave(); load(true); }
+    });
+    inner.addEventListener('click', e => {
       const pv = e.target.closest('[data-prov]');
-      if (pv) { readForm(); if (pv.dataset.prov !== AI.provider) { AI.provider = pv.dataset.prov; AI.key = ''; AI.model = ''; AI.models = null; } draw(); return; }
+      if (pv) { keep(); aiSave(); if (pv.dataset.prov !== AI.provider) { AI.provider = pv.dataset.prov; filter = ''; aiSave(); load(false); } return; }
       const x = e.target.closest('[data-x]'); if (!x) return;
-      if (x.dataset.x === 'forget') { AI.key = ''; aiSave(); draw(); toast('API key removed from this device'); }
-      else if (x.dataset.x === 'models') {
-        readForm(); msg('Loading models…');
-        try {
-          const p = AI_PROVIDERS[AI.provider];
-          const res = await fetch(`${p.url}/models`, {headers: AI.provider === 'gemini' || AI.key ? {Authorization: `Bearer ${AI.key}`} : {}});
-          if (!res.ok) throw new Error(res.status === 401 || res.status === 403 ? 'The key was rejected.' : 'Error ' + res.status);
-          const d = await res.json();
-          const list = (d.data || []).filter(m => AI.provider !== 'openrouter' || (m.supported_parameters || []).includes('tools')).map(m => String(m.id).replace(/^models\//, ''));
-          AI.models = list.slice(0, 400); const keepM = $('#ai-model', inner).value; draw(); $('#ai-model', inner).value = keepM;
-          msg(`${list.length} models that can use tools. Tap the model field to pick one.`);
-        } catch (err) { msg('Couldn’t load models: ' + err.message); }
-      }
+      if (x.dataset.x === 'forget') { delete AI.keys[AI.provider]; aiSave(); draw(); toast(`${AI_PROVIDERS[AI.provider].name} key removed from this device`); }
+      else if (x.dataset.x === 'reload') { keep(); aiSave(); load(true); }
     });
     inner.addEventListener('submit', async e => {
-      e.preventDefault(); readForm();
-      if (!AI.key) { msg('Paste your API key.'); return; }
-      msg('Testing…');
+      e.preventDefault(); keep();
+      if (!aiKey()) { msg('Paste your API key.'); return; }
+      aiSave(); msg('Testing…');
       try {
         const r = await aiCall([{role: 'user', content: 'Reply with the single word: ready'}]);
-        aiSave(); msg(`Works. The model replied “${String(r.content || '').trim().slice(0, 40)}”.`); toast('Assistant connected');
-        setTimeout(() => { close(); if (back) back(); }, 700);
+        msg(`Works. ${aiModel()} replied “${String(r.content || '').trim().slice(0, 40)}”.`); toast('Assistant connected');
+        setTimeout(() => { close(); if (back) back(); }, 800);
       } catch (err) { msg(err.message); }
     });
   }, {cls: 'compact'});
