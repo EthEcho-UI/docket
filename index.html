@@ -520,6 +520,9 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 .fchip.on .key-ok{color:inherit}
 .key-ok .ic{width:14px;height:14px}
 
+.cal-row.ghost{opacity:.6}
+.cal-row.ghost .cal-open b{font-style:italic}
+
 /* ---------- theme picker ---------- */
 .themes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 @media (min-width:520px){.themes{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -894,6 +897,35 @@ const themeName = t => (THEME_LIST.find(x => x[0] === t) || THEME_LIST[0])[1];
 
 /* ================= state ================= */
 const newCard = (title, extra = {}) => Object.assign({id: uid(), title, desc: '', done: false, tags: [], due: '', dueTime: '', priority: 0, pinned: false, checklist: [], created: Date.now()}, extra);
+const REPEATS = [['none', 'Does not repeat'], ['daily', 'Every day'], ['weekdays', 'Every weekday (Mon–Fri)'], ['weekly', 'Every week'], ['biweekly', 'Every 2 weeks'], ['monthly', 'Every month'], ['yearly', 'Every year']];
+const REPEAT_KEYS = REPEATS.map(r => r[0]);
+const repeatName = r => (REPEATS.find(x => x[0] === r) || REPEATS[0])[1].toLowerCase();
+/* does a rule that starts on `start` (YYYY-MM-DD) land on day `key`? (optional last day `until`) */
+function repeatHits(rule, start, key, until) {
+  if (key < start || (until && key > until)) return false;
+  if (!rule || rule === 'none') return key === start;
+  const a = new Date(parseISO(start)), b = new Date(parseISO(key));
+  switch (rule) {
+    case 'daily': return true;
+    case 'weekdays': return b.getDay() >= 1 && b.getDay() <= 5;
+    case 'weekly': return a.getDay() === b.getDay();
+    case 'biweekly': return a.getDay() === b.getDay() && Math.round((b - a) / 864e5) % 14 === 0;
+    case 'monthly': return a.getDate() === b.getDate();
+    case 'yearly': return a.getDate() === b.getDate() && a.getMonth() === b.getMonth();
+  }
+  return false;
+}
+/* the first day after `from` that the rule lands on ('' if none before `until`) */
+function nextRepeat(rule, from, until) {
+  const d = new Date(parseISO(from));
+  for (let i = 0; i < 800; i++) {
+    d.setDate(d.getDate() + 1);
+    const k = dayKey(d.getTime());
+    if (until && k > until) return '';
+    if (repeatHits(rule, from, k)) return k;
+  }
+  return '';
+}
 const PRIORITY = [null, {name: 'Low', c: 'sky'}, {name: 'Medium', c: 'mustard'}, {name: 'High', c: 'rust'}, {name: 'Urgent', c: 'rose'}];
 const dueAt = k => k.due ? parseISO(k.due) + (k.dueTime ? (+k.dueTime.slice(0, 2) * 60 + +k.dueTime.slice(3)) * 6e4 : 864e5 - 1) : Infinity;
 /* order a column is shown in: pinned first, then the column's sort rule (manual keeps the dragged order) */
@@ -973,9 +1005,10 @@ function normalize(s) {
     endDate: /^\d{4}-\d{2}-\d{2}$/.test(e.endDate || '') && e.endDate > e.date ? e.endDate : '', allDay: !!e.allDay,
     start: /^\d{2}:\d{2}$/.test(e.start || '') ? e.start : '09:00', end: /^\d{2}:\d{2}$/.test(e.end || '') ? e.end : '',
     color: LABEL_KEYS.includes(e.color) ? e.color : 'ultra', notes: String(e.notes || ''),
-    repeat: ['none', 'daily', 'weekly', 'monthly', 'yearly'].includes(e.repeat) ? e.repeat : 'none', remind: Number.isFinite(e.remind) ? e.remind : -1})) : [];
+    repeat: REPEAT_KEYS.includes(e.repeat) ? e.repeat : 'none', until: /^\d{4}-\d{2}-\d{2}$/.test(e.until || '') && e.until >= e.date ? e.until : '', remind: Number.isFinite(e.remind) ? e.remind : -1})) : [];
   /* one-off reminders (made by you or the assistant); old ones are dropped after a week */
-  s.reminders = Array.isArray(s.reminders) ? s.reminders.filter(r => r && Number.isFinite(r.at) && r.at > Date.now() - 7 * 864e5).map(r => ({id: r.id || uid(), at: r.at, title: String(r.title || 'Reminder'), body: String(r.body || '')})) : [];
+  s.reminders = Array.isArray(s.reminders) ? s.reminders.filter(r => r && Number.isFinite(r.at) && (r.at > Date.now() - 7 * 864e5 || (REPEAT_KEYS.includes(r.repeat) && r.repeat !== 'none' && !(r.until && r.until < isoDay(0)))))
+    .map(r => ({id: r.id || uid(), at: r.at, title: String(r.title || 'Reminder'), body: String(r.body || ''), repeat: REPEAT_KEYS.includes(r.repeat) ? r.repeat : 'none', until: /^\d{4}-\d{2}-\d{2}$/.test(r.until || '') ? r.until : ''})) : [];
   s.entries = Array.isArray(s.entries) ? s.entries.filter(e => e && Number.isFinite(e.start)).map(e => ({id: e.id || uid(), jobId: jobIds.has(e.jobId) ? e.jobId : null, cardId: e.cardId || null, title: String(e.title || ''), start: e.start, end: Number.isFinite(e.end) ? e.end : null, note: String(e.note || ''), ...(e.undated && Number.isFinite(e.end) ? {undated: true} : {})})) : [];
   /* only one timer may run */
   let seen = false;
@@ -1008,7 +1041,7 @@ function normalize(s) {
         k.id = k.id || uid(); k.title = String(k.title || 'Untitled'); k.desc = String(k.desc || '');
         k.done = !!k.done; k.due = typeof k.due === 'string' ? k.due : '';
         k.dueTime = /^\d{2}:\d{2}$/.test(k.dueTime || '') && k.due ? k.dueTime : '';
-        k.priority = [0, 1, 2, 3, 4].includes(k.priority) ? k.priority : 0; k.pinned = !!k.pinned;
+        k.priority = [0, 1, 2, 3, 4].includes(k.priority) ? k.priority : 0; k.pinned = !!k.pinned; k.repeat = REPEAT_KEYS.includes(k.repeat) ? k.repeat : 'none';
         k.tags = Array.isArray(k.tags) ? k.tags.filter(id => tagIds.has(id)) : [];
         if (Array.isArray(k.labels)) {
           k.labels.filter(x => LABEL_KEYS.includes(x)).forEach(x => { const id = legacyTag(String(legacyNames[x] || '').trim(), x); if (!k.tags.includes(id)) k.tags.push(id); });
@@ -1237,7 +1270,17 @@ function reminderItems() {
       });
     }
   }
-  state.reminders.forEach(r => add({key: 'rem:' + r.id, at: r.at, tag: 'rem-' + r.id, title: r.title, body: r.body}));
+  state.reminders.forEach(r => {
+    if (r.repeat === 'none') { add({key: 'rem:' + r.id, at: r.at, tag: 'rem-' + r.id, title: r.title, body: r.body}); return; }
+    const t = new Date(r.at), start = dayKey(r.at);
+    for (let i = 0, n = 0; i <= 45 && n < 20; i++) {
+      const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + i);
+      const key = dayKey(d.getTime());
+      if (!repeatHits(r.repeat, start, key, r.until)) continue;
+      d.setHours(t.getHours(), t.getMinutes(), 0, 0);
+      if (d.getTime() >= r.at) { add({key: `rem:${r.id}:${key}`, at: d.getTime(), tag: 'rem-' + r.id, title: r.title, body: r.body}); n++; }
+    }
+  });
   return items.sort((a, b) => a.at - b.at).slice(0, 100);
 }
 /* backup: while Docket is open, it fires the next day's reminders itself (same tags, so a push copy just replaces it) */
@@ -1304,8 +1347,8 @@ function openNotifSheet() {
         + `<div class="toggle"><span><label for="np-time">Morning reminder</label><small>For cards due without a time</small></span><input id="np-time" type="time" class="field" style="width:auto" value="${n.dueTime}"${on && n.due ? '' : ' disabled'}></div>`
         + `<label class="toggle"><span>Calendar events<small>Using each event’s own reminder</small></span><input type="checkbox" data-np="events"${n.events ? ' checked' : ''}${on ? '' : ' disabled'}><span class="switch"></span></label>`
         + `<div class="sec-head"><h3>One-off reminders</h3></div>`
-        + (rems.length ? rems.map(r => `<div class="task-row"><div class="entry" style="cursor:default"><span class="t"><b>${esc(r.title)}</b><small>${fmtStamp(r.at)}${r.at < Date.now() ? ' · sent' : ''}${r.body ? ' · ' + esc(r.body) : ''}</small></span></div><button type="button" class="icon-btn sm" data-rm="${r.id}" aria-label="Delete reminder">${icon('x')}</button></div>`).join('') : '')
-        + `<form class="rem-add" data-form="rem" novalidate><input id="rem-text" class="field" placeholder="Remind me to…" maxlength="120" autocomplete="off"><input id="rem-at" type="datetime-local" class="field"><button type="submit" class="btn">${icon('bell')}Add</button></form>`
+        + (rems.length ? rems.map(r => `<div class="task-row"><div class="entry" style="cursor:default"><span class="t"><b>${esc(r.title)}</b><small>${r.repeat !== 'none' ? `↻ ${repeatName(r.repeat)} at ${hhmm(r.at)}${r.until ? ' until ' + fmtDate(parseISO(r.until)) : ''}, from ${fmtDate(r.at)}` : fmtStamp(r.at) + (r.at < Date.now() ? ' · sent' : '')}${r.body ? ' · ' + esc(r.body) : ''}</small></span></div><button type="button" class="icon-btn sm" data-rm="${r.id}" aria-label="Delete reminder">${icon('x')}</button></div>`).join('') : '')
+        + `<form class="rem-add" data-form="rem" novalidate><input id="rem-text" class="field" placeholder="Remind me to…" maxlength="120" autocomplete="off"><input id="rem-at" type="datetime-local" class="field"><span class="select-wrap"><select id="rem-repeat" class="select" aria-label="Repeat">${REPEATS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select></span><button type="submit" class="btn">${icon('bell')}Add</button></form>`
         + (on && pushOn() ? `<div class="sheet-actions" style="justify-content:flex-start"><button type="button" class="btn" data-x="test">Send a test notification</button></div>` : '')
         + `<p class="sheet-hint">If reminders arrive late, turn off battery optimisation for Docket (or Chrome) in Android settings.</p>`;
     };
@@ -1316,8 +1359,9 @@ function openNotifSheet() {
       e.preventDefault();
       const text = $('#rem-text', inner).value.trim(), at = new Date($('#rem-at', inner).value).getTime();
       if (!text || !(at > Date.now())) { toast('Write what to remind you about and pick a time in the future.'); return; }
-      state.reminders.push({id: uid(), at, title: text, body: ''});
-      haptic('success'); save(); toast(`Reminder set for ${fmtStamp(at)}`);
+      const repeat = $('#rem-repeat', inner).value;
+      state.reminders.push({id: uid(), at, title: text, body: '', repeat, until: ''});
+      haptic('success'); save(); toast(repeat === 'none' ? `Reminder set for ${fmtStamp(at)}` : `Reminder set: ${repeatName(repeat)} at ${hhmm(at)}`);
       if (notifStatus() !== 'on') toast('Reminder saved. Turn on notifications so it can reach you.');
       check();
     });
@@ -1433,7 +1477,7 @@ function cardHTML(c, k, r) {
   if (r && r.cardId === k.id) meta.push(`<span class="chip live"><span class="live-dot"></span><span data-since="${r.start}" data-base="${tracked}">${clock(tracked + Date.now() - r.start)}</span></span>`);
   else if (tracked) meta.push(`<span class="chip" title="Time tracked">${icon('clock')}${fmtHM(tracked)}</span>`);
   if (k.priority) meta.unshift(`<span class="chip prio" style="--c:var(--l-${PRIORITY[k.priority].c})">${icon('flag')}${PRIORITY[k.priority].name}</span>`);
-  if (k.due) { const d = dueInfo(k.due, k.done); if (d.text) meta.push(`<span class="chip ${d.cls}">${icon('cal')}${d.text}${k.dueTime ? ' ' + k.dueTime : ''}</span>`); }
+  if (k.due) { const d = dueInfo(k.due, k.done); if (d.text) meta.push(`<span class="chip ${d.cls}"${k.repeat !== 'none' ? ` title="Repeats ${repeatName(k.repeat)}"` : ''}>${icon('cal')}${d.text}${k.dueTime ? ' ' + k.dueTime : ''}${k.repeat !== 'none' ? ' ↻' : ''}</span>`); }
   if (k.checklist.length) {
     const n = k.checklist.filter(i => i.done).length;
     meta.push(`<span class="chip${n === k.checklist.length ? ' ok' : ''}">${icon('checklist')}${n}/${k.checklist.length}</span>`);
@@ -1606,12 +1650,35 @@ function moveForDone(card, done) {
   l.cards.splice(f.index, 1); delete card.fromList; back.cards.unshift(card);
   return `Moved back to ${back.title}`;
 }
+/* a repeating card that gets finished leaves a fresh copy in its place with the next due date */
+function spawnNext(card) {
+  if (!card.repeat || card.repeat === 'none' || !card.due) return '';
+  const today = isoDay(0);
+  let next = nextRepeat(card.repeat, card.due);
+  while (next && next < today) next = nextRepeat(card.repeat, next);
+  const f = findCard(card.id); if (!next || !f) return '';
+  const cp = cloneCard(card);
+  Object.assign(cp, {done: false, due: next, repeat: card.repeat}); delete cp.fromList; delete cp.spawned; delete cp.repeatWas;
+  cp.checklist.forEach(i => { i.done = false; });
+  f.list.cards.splice(f.index, 0, cp);
+  card.spawned = cp.id; card.repeatWas = card.repeat; card.repeat = 'none';
+  const t = dueInfo(next, false).text || fmtDate(parseISO(next));
+  return `next one ${/^(Today|Tomorrow)$/.test(t) ? t.toLowerCase() : 'on ' + t}`;
+}
+function unspawn(card) {
+  if (!card.spawned) return;
+  const nf = findCard(card.spawned);
+  if (nf && !nf.card.done) nf.list.cards.splice(nf.index, 1);
+  card.repeat = card.repeatWas || card.repeat; delete card.spawned; delete card.repeatWas;
+}
 function setDone(card, done) {
   card.done = done;
   haptic(done ? 'success' : 'tap');
   const r = running();
   if (done && r && r.cardId === card.id) { stopTracking(); toast('Timer stopped'); }
-  return moveForDone(card, done);
+  const next = done ? spawnNext(card) : (unspawn(card), '');
+  const moved = moveForDone(card, done);
+  return [moved, next].filter(Boolean).join(' · ').replace(/^next/, 'Next');
 }
 
 /* ================= event delegation ================= */
@@ -3618,23 +3685,18 @@ function openTagEditor(id, back) {
 }
 
 /* ================= calendar: due cards + events ================= */
-const REPEATS = [['none', 'Does not repeat'], ['daily', 'Every day'], ['weekly', 'Every week'], ['monthly', 'Every month'], ['yearly', 'Every year']];
 const REMINDS = [[-1, 'No reminder'], [0, 'At the start'], [5, '5 minutes before'], [10, '10 minutes before'], [30, '30 minutes before'], [60, '1 hour before'], [1440, '1 day before']];
 function occursOn(ev, key) {
-  if (key < ev.date) return false;
-  if (ev.repeat === 'none') return key <= (ev.endDate || ev.date);
-  const a = new Date(parseISO(ev.date)), b = new Date(parseISO(key));
-  if (ev.repeat === 'daily') return true;
-  if (ev.repeat === 'weekly') return a.getDay() === b.getDay();
-  if (ev.repeat === 'monthly') return a.getDate() === b.getDate();
-  return a.getDate() === b.getDate() && a.getMonth() === b.getMonth();
+  if (ev.repeat === 'none') return key >= ev.date && key <= (ev.endDate || ev.date);
+  return repeatHits(ev.repeat, ev.date, key, ev.until);
 }
 /* everything on one day: events and cards due that day, all-day items first */
 function itemsOn(key) {
   const out = [];
-  state.events.forEach(ev => { if (occursOn(ev, key)) out.push({kind: 'event', id: ev.id, title: ev.title, allDay: ev.allDay, time: ev.allDay ? '' : ev.start, end: ev.allDay ? '' : ev.end, color: `var(--l-${ev.color})`, done: false, sub: ev.repeat !== 'none' ? REPEATS.find(r => r[0] === ev.repeat)[1] : ev.endDate ? `Until ${fmtDate(parseISO(ev.endDate))}` : ''}); });
+  state.events.forEach(ev => { if (occursOn(ev, key)) out.push({kind: 'event', id: ev.id, title: ev.title, allDay: ev.allDay, time: ev.allDay ? '' : ev.start, end: ev.allDay ? '' : ev.end, color: `var(--l-${ev.color})`, done: false, sub: ev.repeat !== 'none' ? REPEATS.find(r => r[0] === ev.repeat)[1] + (ev.until ? ` until ${fmtDate(parseISO(ev.until))}` : '') : ev.endDate ? `Until ${fmtDate(parseISO(ev.endDate))}` : ''}); });
   state.categories.forEach(c => c.lists.forEach(l => l.cards.forEach(k => {
-    if (k.due === key) out.push({kind: 'card', id: k.id, title: k.title, allDay: !k.dueTime, time: k.dueTime, end: '', color: `var(--l-${c.color})`, done: k.done, prio: k.priority, sub: `${c.name} · ${l.title}`});
+    if (k.due === key) out.push({kind: 'card', id: k.id, title: k.title, allDay: !k.dueTime, time: k.dueTime, end: '', color: `var(--l-${c.color})`, done: k.done, prio: k.priority, sub: `${c.name} · ${l.title}${k.repeat !== 'none' ? ' · ↻ ' + repeatName(k.repeat) : ''}`});
+    else if (!k.done && k.due && k.repeat !== 'none' && key > k.due && repeatHits(k.repeat, k.due, key)) out.push({kind: 'card', id: k.id, title: k.title, allDay: !k.dueTime, time: k.dueTime, end: '', color: `var(--l-${c.color})`, done: false, ghost: true, prio: k.priority, sub: `Repeats ${repeatName(k.repeat)} · ${c.name}`});
   })));
   return out.sort((a, b) => (b.allDay - a.allDay) || a.time.localeCompare(b.time) || (a.done - b.done));
 }
@@ -3648,7 +3710,7 @@ function calendarHTML() {
     const items = itemsOn(key), inMonth = d.getMonth() === m - 1;
     cells.push(`<button type="button" class="cal-day${inMonth ? '' : ' out'}${key === today ? ' today' : ''}${key === ui.cal.day ? ' sel' : ''}" data-day="${key}" aria-label="${fmtDay(key)}, ${items.length} items">`
       + `<span class="cal-num">${d.getDate()}</span><span class="cal-items">`
-      + items.slice(0, 3).map(it => `<i class="${it.done ? 'done' : ''}${it.kind === 'event' ? ' ev' : ''}" style="--c:${it.color}">${esc(it.title)}</i>`).join('')
+      + items.slice(0, 3).map(it => `<i class="${it.done || it.ghost ? 'done' : ''}${it.kind === 'event' ? ' ev' : ''}" style="--c:${it.color}">${esc(it.title)}</i>`).join('')
       + (items.length > 3 ? `<b>+${items.length - 3}</b>` : '') + `</span></button>`);
     if (i === 34 && new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + 35).getMonth() !== m - 1) break;
   }
@@ -3661,11 +3723,12 @@ function calendarHTML() {
     + `<div class="cal-grid" role="grid">${weekdays.map(w => `<span class="cal-wd">${w}</span>`).join('')}${cells.join('')}</div>`
     + `<div class="cal-dayhead"><b>${new Date(parseISO(ui.cal.day)).toLocaleDateString(undefined, {weekday: 'long', day: 'numeric', month: 'long'})}</b>`
     + `<span class="grow"></span><button type="button" class="btn sm" data-c="add-task">${icon('plus')}Task</button><button type="button" class="btn sm primary" data-c="add-event">${icon('plus')}Event</button></div>`
-    + (dayItems.length ? dayItems.map(it => `<div class="cal-row${it.done ? ' done' : ''}">`
-        + (it.kind === 'card' ? `<button type="button" class="check${it.done ? ' on' : ''}" data-c="toggle" data-id="${it.id}" aria-label="${it.done ? 'Mark as not done' : 'Mark as done'}">${icon('check')}</button>` : `<span class="cal-evdot" style="--c:${it.color}"></span>`)
+    + (dayItems.length ? dayItems.map(it => `<div class="cal-row${it.done ? ' done' : ''}${it.ghost ? ' ghost' : ''}">`
+        + (it.kind === 'card' && !it.ghost ? `<button type="button" class="check${it.done ? ' on' : ''}" data-c="toggle" data-id="${it.id}" aria-label="${it.done ? 'Mark as not done' : 'Mark as done'}">${icon('check')}</button>` : `<span class="cal-evdot" style="--c:${it.color}"></span>`)
         + `<button type="button" class="cal-open" data-c="open" data-kind="${it.kind}" data-id="${it.id}"><span class="cal-time">${it.allDay ? 'All day' : esc(it.time) + (it.end ? '–' + esc(it.end) : '')}</span>`
         + `<span class="t"><b>${esc(it.title)}</b><small>${it.kind === 'card' ? `<span class="tab-dot" style="--c:${it.color}"></span>` : ''}${esc(it.sub || (it.kind === 'event' ? 'Event' : ''))}${it.prio ? ` · ${PRIORITY[it.prio].name}` : ''}</small></span></button></div>`).join('')
       : `<p class="empty sm">Nothing on this day. Add a task or an event.</p>`);
+
 }
 function openCalendar(day) {
   ui.cal = ui.cal || {};
@@ -3703,23 +3766,25 @@ function openCalendar(day) {
 
 function openEventEditor(id, {date, back} = {}) {
   const ex = id ? state.events.find(e => e.id === id) : null;
-  const ev = ex ? {...ex} : {id: uid(), title: '', date: date || isoDay(0), endDate: '', allDay: false, start: '09:00', end: '10:00', color: 'ultra', notes: '', repeat: 'none', remind: 10};
+  const ev = ex ? {...ex} : {id: uid(), title: '', date: date || isoDay(0), endDate: '', until: '', allDay: false, start: '09:00', end: '10:00', color: 'ultra', notes: '', repeat: 'none', remind: 10};
   openSheet((inner, close) => {
     inner.innerHTML = `<form novalidate><h2 class="sheet-title sheet-drag">${ex ? 'Edit event' : 'New event'}</h2><div class="form-grid">`
       + `<div class="fld full"><label for="ev-title">Title</label><input id="ev-title" class="field" value="${esc(ev.title)}" maxlength="120" placeholder="e.g. Dentist, Team meeting" autocomplete="off"></div>`
       + `<label class="toggle full"><span>All day</span><input type="checkbox" id="ev-allday"${ev.allDay ? ' checked' : ''}><span class="switch"></span></label>`
       + `<div class="fld"><label for="ev-date">Date</label><input id="ev-date" type="date" class="field" value="${ev.date}"></div>`
-      + `<div class="fld" id="ev-enddate-wrap"${ev.allDay ? '' : ' hidden'}><label for="ev-enddate">Until (optional)</label><input id="ev-enddate" type="date" class="field" value="${ev.endDate}"></div>`
+      + `<div class="fld" id="ev-enddate-wrap"${ev.allDay ? '' : ' hidden'}><label for="ev-enddate">Last day (optional)</label><input id="ev-enddate" type="date" class="field" value="${ev.endDate}"></div>`
       + `<div class="fld ev-times"${ev.allDay ? ' hidden' : ''}><label for="ev-start">Starts</label><input id="ev-start" type="time" class="field" value="${ev.start}"></div>`
       + `<div class="fld ev-times"${ev.allDay ? ' hidden' : ''}><label for="ev-end">Ends</label><input id="ev-end" type="time" class="field" value="${ev.end}"></div>`
       + `<div class="fld full"><span class="lbl">Color</span><div class="menu-swatches flat" role="group" aria-label="Color">${LABEL_KEYS.map(k => `<button type="button" class="swatch${k === ev.color ? ' on' : ''}" data-k="${k}" style="--c:var(--l-${k})" aria-label="${LABEL_NAME[k]}" aria-pressed="${k === ev.color}"></button>`).join('')}</div></div>`
       + `<div class="fld"><label for="ev-repeat">Repeat</label><span class="select-wrap block"><select id="ev-repeat" class="select">${REPEATS.map(([k, n]) => `<option value="${k}"${k === ev.repeat ? ' selected' : ''}>${n}</option>`).join('')}</select></span></div>`
+      + `<div class="fld" id="ev-until-wrap"${ev.repeat === 'none' ? ' hidden' : ''}><label for="ev-until">Repeat until (optional)</label><input id="ev-until" type="date" class="field" value="${ev.until || ''}"></div>`
       + `<div class="fld"><label for="ev-remind">Reminder</label><span class="select-wrap block"><select id="ev-remind" class="select">${REMINDS.map(([k, n]) => `<option value="${k}"${k === ev.remind ? ' selected' : ''}>${n}</option>`).join('')}</select></span></div>`
       + `<div class="fld full"><label for="ev-notes">Notes</label><textarea id="ev-notes" class="field area" rows="3">${esc(ev.notes)}</textarea></div>`
       + `</div><p class="sheet-hint" id="ev-msg" aria-live="polite">${'Notification' in window && notifStatus() !== 'on' ? 'Turn on notifications in Settings to get event reminders.' : ''}</p>`
       + `<div class="sheet-actions">${ex ? `<button type="button" class="btn danger" data-x="del">${icon('trash')}Delete</button>` : ''}<span class="grow"></span><button type="button" class="btn" data-x="cancel">Cancel</button><button type="submit" class="btn primary">Save</button></div></form>`;
     const done = () => { close(); if (back) back(); };
     inner.addEventListener('change', e => {
+      if (e.target.id === 'ev-repeat') { $('#ev-until-wrap', inner).hidden = e.target.value === 'none'; return; }
       if (e.target.id !== 'ev-allday') return;
       const on = e.target.checked;
       $$('.ev-times', inner).forEach(x => { x.hidden = on; }); $('#ev-enddate-wrap', inner).hidden = !on;
@@ -3737,6 +3802,7 @@ function openEventEditor(id, {date, back} = {}) {
       const patch = {title: $('#ev-title', inner).value.replace(/\s+/g, ' ').trim(), allDay: $('#ev-allday', inner).checked, date: $('#ev-date', inner).value,
         start: $('#ev-start', inner).value || '09:00', end: $('#ev-end', inner).value || '', color: ev.color, notes: $('#ev-notes', inner).value.trim(),
         repeat: $('#ev-repeat', inner).value, remind: +$('#ev-remind', inner).value};
+      patch.until = patch.repeat !== 'none' && $('#ev-until', inner).value >= patch.date ? $('#ev-until', inner).value : '';
       patch.endDate = patch.allDay && $('#ev-enddate', inner).value > patch.date ? $('#ev-enddate', inner).value : '';
       if (!patch.title) { msg.textContent = 'Give the event a title.'; return; }
       if (!/^\d{4}-\d{2}-\d{2}$/.test(patch.date)) { msg.textContent = 'Pick a date.'; return; }
@@ -3760,6 +3826,7 @@ function openCalTaskSheet(date, back) {
       + `<div class="fld"><label for="ct-list">List</label><span class="select-wrap block"><select id="ct-list" class="select">${listOptions()}</select></span></div>`
       + `<div class="fld"><label for="ct-date">Due</label><input id="ct-date" type="date" class="field" value="${date}"></div>`
       + `<div class="fld"><label for="ct-time">Time (optional)</label><input id="ct-time" type="time" class="field"></div>`
+      + `<div class="fld full"><label for="ct-repeat">Repeat</label><span class="select-wrap block"><select id="ct-repeat" class="select">${REPEATS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select></span></div>`
       + `<div class="fld full"><span class="lbl">Priority</span><div class="chips wrap">${PRIORITY.map((p, i) => `<button type="button" class="fchip${i === 0 ? ' on' : ''}" data-p="${i}">${p ? `<span class="tab-dot" style="--c:var(--l-${p.c})"></span>${p.name}` : 'None'}</button>`).join('')}</div></div>`
       + `</div><p class="sheet-hint" id="ct-msg" aria-live="polite">The task goes onto the board you pick and shows here on its due date.</p>`
       + `<div class="sheet-actions"><button type="button" class="btn" data-x="cancel">Cancel</button><button type="submit" class="btn primary">Add task</button></div></form>`;
@@ -3777,7 +3844,7 @@ function openCalTaskSheet(date, back) {
       let l = findList($('#ct-list', inner).value); l = l ? l.list : null;
       if (!l) { l = newList('To do'); c.lists.unshift(l); }
       const due = $('#ct-date', inner).value;
-      l.cards.push(newCard(title, {due, dueTime: due ? $('#ct-time', inner).value : '', priority: prio}));
+      l.cards.push(newCard(title, {due, dueTime: due ? $('#ct-time', inner).value : '', priority: prio, repeat: due ? $('#ct-repeat', inner).value : 'none'}));
       haptic('success'); commit(); toast(`Added to ${c.name} · ${l.title}`);
       close(); if (back) back();
     });
@@ -3845,18 +3912,21 @@ const AI_TOOLS = [
     board: S('Board name; defaults to the board the user is looking at'), list: S('List name; defaults to the first open list'), title: S('Card title'),
     description: S('Notes (optional)'), due_date: S('YYYY-MM-DD (optional)'), due_time: S('HH:MM 24h (optional)'),
     priority: S('none, low, medium, high or urgent', {enum: ['none', 'low', 'medium', 'high', 'urgent']}), tags: {type: 'array', items: {type: 'string'}, description: 'Tag names (optional)'},
-    checklist: {type: 'array', items: {type: 'string'}, description: 'Checklist items (optional)'}, pinned: {type: 'boolean'}}, ['title']),
+    checklist: {type: 'array', items: {type: 'string'}, description: 'Checklist items (optional)'}, pinned: {type: 'boolean'},
+    repeat: S('Repeat the task (needs due_date): none, daily, weekdays, weekly, biweekly, monthly or yearly', {enum: REPEAT_KEYS})}, ['title']),
   fn('update_card', 'Change a card. Only the fields you give are changed.', {
     card_id: S('Card id'), title: S('New title'), description: S('Replace the notes'), append_description: S('Text to add at the end of the notes'),
     due_date: S('YYYY-MM-DD, or empty string to clear'), due_time: S('HH:MM, or empty string to clear'), priority: S('none, low, medium, high or urgent', {enum: ['none', 'low', 'medium', 'high', 'urgent']}),
     add_tags: {type: 'array', items: {type: 'string'}}, remove_tags: {type: 'array', items: {type: 'string'}},
     add_checklist_items: {type: 'array', items: {type: 'string'}}, done: {type: 'boolean'}, pinned: {type: 'boolean'},
-    move_to_list: S('List name to move the card to'), move_to_board: S('Board name to move the card to')}, ['card_id']),
+    move_to_list: S('List name to move the card to'), move_to_board: S('Board name to move the card to'),
+    repeat: S('none, daily, weekdays, weekly, biweekly, monthly or yearly (needs a due date)', {enum: REPEAT_KEYS})}, ['card_id']),
   fn('create_list', 'Create a list (column) on a board.', {board: S('Board name'), title: S('List title')}, ['title']),
   fn('create_event', 'Add a calendar event.', {title: S('Event title'), date: S('YYYY-MM-DD'), start_time: S('HH:MM (omit for all-day)'), end_time: S('HH:MM (optional)'),
-    repeat: S('none, daily, weekly, monthly or yearly', {enum: ['none', 'daily', 'weekly', 'monthly', 'yearly']}), reminder_minutes_before: {type: 'integer', description: 'Minutes before the start to notify; omit for no reminder'}, notes: S('Notes (optional)')}, ['title', 'date']),
+    repeat: S('none, daily, weekdays, weekly, biweekly, monthly or yearly', {enum: REPEAT_KEYS}), repeat_until: S('Last date the event repeats, YYYY-MM-DD (optional)'), reminder_minutes_before: {type: 'integer', description: 'Minutes before the start to notify; omit for no reminder'}, notes: S('Notes (optional)')}, ['title', 'date']),
   fn('list_events', 'List calendar events and due cards between two dates.', {from: S('YYYY-MM-DD'), to: S('YYYY-MM-DD')}, ['from', 'to']),
-  fn('set_reminder', 'Send the user a phone notification at a specific local date and time.', {at: S('Local date and time, YYYY-MM-DDTHH:MM'), message: S('What the notification should say'), details: S('Extra line (optional)')}, ['at', 'message'])
+  fn('set_reminder', 'Send the user a phone notification at a specific local date and time, optionally repeating at the same time.', {at: S('First time, local, YYYY-MM-DDTHH:MM'), message: S('What the notification should say'), details: S('Extra line (optional)'),
+    repeat: S('none, daily, weekdays, weekly, biweekly, monthly or yearly', {enum: REPEAT_KEYS}), until: S('Last date it repeats, YYYY-MM-DD (optional)')}, ['at', 'message'])
 ];
 const norm = s => String(s || '').trim().toLowerCase();
 const PRIO_NAMES = ['none', 'low', 'medium', 'high', 'urgent'];
@@ -3903,6 +3973,7 @@ function aiRun(name, a) {
       const k = newCard(String(a.title || 'Untitled').slice(0, 300), {desc: String(a.description || ''), due: validDate(a.due_date) ? a.due_date : '', priority: Math.max(0, PRIO_NAMES.indexOf(norm(a.priority))), pinned: !!a.pinned,
         tags: aiTags(a.tags), checklist: (a.checklist || []).map(t => ({id: uid(), text: String(t).slice(0, 200), done: false}))});
       if (k.due && validTime(a.due_time)) k.dueTime = a.due_time;
+      if (k.due && REPEAT_KEYS.includes(a.repeat)) k.repeat = a.repeat;
       l.cards.push(k);
       return {ok: true, card_id: k.id, board: c.name, list: l.title};
     }
@@ -3914,6 +3985,8 @@ function aiRun(name, a) {
       if (a.append_description) k.desc = (k.desc ? k.desc.replace(/\s+$/, '') + '\n\n' : '') + a.append_description;
       if (a.due_date === '') { k.due = ''; k.dueTime = ''; } else if (validDate(a.due_date)) k.due = a.due_date;
       if (a.due_time === '') k.dueTime = ''; else if (validTime(a.due_time) && k.due) k.dueTime = a.due_time;
+      if (REPEAT_KEYS.includes(a.repeat)) k.repeat = k.due ? a.repeat : 'none';
+      if (!k.due) k.repeat = 'none';
       if (a.priority) k.priority = Math.max(0, PRIO_NAMES.indexOf(norm(a.priority)));
       if (a.add_tags) aiTags(a.add_tags).forEach(id => { if (!k.tags.includes(id)) k.tags.push(id); });
       if (a.remove_tags) { const rm = new Set(state.tags.filter(t => a.remove_tags.some(n => norm(n) === norm(t.name))).map(t => t.id)); k.tags = k.tags.filter(id => !rm.has(id)); }
@@ -3936,7 +4009,7 @@ function aiRun(name, a) {
       if (!validDate(a.date)) return {error: 'date must be YYYY-MM-DD'};
       const timed = validTime(a.start_time);
       const ev = {id: uid(), title: String(a.title).slice(0, 120), date: a.date, endDate: '', allDay: !timed, start: timed ? a.start_time : '09:00', end: timed && validTime(a.end_time) ? a.end_time : '',
-        color: 'ultra', notes: String(a.notes || ''), repeat: ['daily', 'weekly', 'monthly', 'yearly'].includes(a.repeat) ? a.repeat : 'none', remind: Number.isInteger(a.reminder_minutes_before) && a.reminder_minutes_before >= 0 ? a.reminder_minutes_before : -1};
+        color: 'ultra', notes: String(a.notes || ''), repeat: REPEAT_KEYS.includes(a.repeat) ? a.repeat : 'none', until: validDate(a.repeat_until) && a.repeat_until >= a.date ? a.repeat_until : '', remind: Number.isInteger(a.reminder_minutes_before) && a.reminder_minutes_before >= 0 ? a.reminder_minutes_before : -1};
       state.events.push(ev);
       return {ok: true, event_id: ev.id, reminder: ev.remind >= 0 ? `${ev.remind} min before` : 'none', notifications_on: notifStatus() === 'on'};
     }
@@ -3949,8 +4022,9 @@ function aiRun(name, a) {
     case 'set_reminder': {
       const at = new Date(a.at).getTime();
       if (!(at > Date.now())) return {error: 'The time must be in the future, as YYYY-MM-DDTHH:MM local time.'};
-      state.reminders.push({id: uid(), at, title: String(a.message).slice(0, 120), body: String(a.details || '').slice(0, 300)});
-      return {ok: true, at: fmtStamp(at), notifications_on: notifStatus() === 'on', reaches_phone_when_closed: notifStatus() === 'on' && pushOn()};
+      const repeat = REPEAT_KEYS.includes(a.repeat) ? a.repeat : 'none';
+      state.reminders.push({id: uid(), at, title: String(a.message).slice(0, 120), body: String(a.details || '').slice(0, 300), repeat, until: validDate(a.until) ? a.until : ''});
+      return {ok: true, at: fmtStamp(at), repeat: repeat === 'none' ? 'no' : repeatName(repeat), notifications_on: notifStatus() === 'on', reaches_phone_when_closed: notifStatus() === 'on' && pushOn()};
     }
   }
   return {error: 'Unknown tool'};
@@ -3976,7 +4050,8 @@ You are the built-in assistant of Docket, the user's personal to-do, calendar an
 - Finishing a card (done=true) moves it to its board's Done column; un-finishing moves it back. Lists can be sorted manually, by priority or by due date.
 - Tags are shared by all boards and grouped (Priority, Status, Type, Effort, Area, Your labels). Unknown tag names are created automatically, so prefer existing tags.
 - The calendar shows cards on their due date and separate events (all-day or timed, can repeat, can have a reminder).
-- Notifications: cards remind at their due time (or in the morning if they have no time), events remind at their own reminder, and set_reminder sends a one-off notification at an exact time.
+- Notifications: cards remind at their due time (or in the morning if they have no time), events remind at their own reminder, and set_reminder sends a notification at an exact time.
+- Repeating: cards with a due date can repeat (daily, weekdays, weekly, biweekly, monthly, yearly); when one is finished the next copy is created automatically with the next due date. Events and reminders can repeat the same way, optionally until a date.
 - Work hours, jobs, timers, themes and settings exist in the app but you cannot change them; tell the user where to find them (timer button at the top, Settings).
 
 # Right now
@@ -3993,7 +4068,7 @@ ${boards}
 2. Before changing an existing card, find it with find_cards (or use the card_id from earlier in this conversation). Never invent ids. If several cards match, pick the obvious one or ask which.
 3. When the board or list is not said, use the open board and its first open list, or the list whose name fits best. Ask only when a wrong guess would be a real problem.
 4. Turn relative dates and times into exact ones using the dates above ("Friday", "next week" = next Monday, "in 2 hours", "tonight" = 19:00, "morning" = 09:00). Times are 24-hour local time.
-5. "Remind me…" means set_reminder at that time. A deadline for a task means due_date (+ due_time if a time is given). An appointment or meeting means create_event (add a reminder if the user asks for one or it clearly helps).
+5. "Remind me…" means set_reminder at that time; "every day / every Monday / on weekdays…" means the matching repeat, starting at the next matching date. A deadline for a task means due_date (+ due_time if a time is given). An appointment or meeting means create_event (add a reminder if the user asks for one or it clearly helps).
 6. After acting, reply in one or two short sentences saying what you did and where (board, list, date and time). If notifications are OFF and you set a reminder, tell them to turn notifications on in Settings → Notifications.
 
 # Writing content
@@ -4274,7 +4349,8 @@ function openCard(id) {
         + PRIORITY.map((pr, i) => `<button type="button" class="fchip${k.priority === i ? ' on' : ''}" data-cs="prio" data-p="${i}">${pr ? `<span class="tab-dot" style="--c:var(--l-${pr.c})"></span>${pr.name}` : 'None'}</button>`).join('') + `</div></section>`
         + `<section class="cs-sec"><div class="cs-sec-head"><h3><label for="cs-due">Due</label></h3>${k.due ? `<button type="button" class="link" data-cs="clear-due">Clear</button>` : ''}</div>`
         + `<div class="due-row"><input type="date" id="cs-due" class="field" value="${esc(k.due)}"><input type="time" id="cs-due-time" class="field" value="${esc(k.dueTime)}"${k.due ? '' : ' disabled'} aria-label="Due time (optional)" title="Time (optional)">${due && due.text ? `<span class="chip ${due.cls}">${icon('cal')}${due.text}${k.dueTime ? ' ' + k.dueTime : ''}</span>` : ''}</div>`
-        + `<p class="sheet-hint" style="margin-top:6px">The time is optional. Cards with a due date also show up in the calendar.</p></section>`
+        + `<div class="due-row" style="margin-top:8px"><label for="cs-repeat" class="sr-only">Repeat</label><span class="select-wrap"><select id="cs-repeat" class="select"${k.due ? '' : ' disabled'}>${REPEATS.map(([v, n]) => `<option value="${v}"${k.repeat === v ? ' selected' : ''}>${n}</option>`).join('')}</select></span></div>`
+        + `<p class="sheet-hint" style="margin-top:6px">${k.repeat !== 'none' && k.due ? 'When you finish it, the next one appears automatically with the next due date.' : 'Time and repeat are optional. Cards with a due date also show up in the calendar.'}</p></section>`
         + `<section class="cs-sec"><div class="cs-sec-head"><h3><label for="cs-desc">Notes</label></h3></div>`
         + `<textarea id="cs-desc" class="field area" rows="3" placeholder="Details, links, measurements">${esc(k.desc)}</textarea></section>`
         + `<section class="cs-sec"><div class="cs-sec-head"><h3>Checklist</h3>${tot ? `<span class="mono muted">${doneN}/${tot}</span>` : ''}</div>`
@@ -4320,7 +4396,7 @@ function openCard(id) {
         case 'entry': openEntryEditor(b.dataset.e, {back}); return;
         case 'add-time': openEntryEditor(null, {cardId: id, back}); return;
         case 'tags': openTagPicker(id, back); return;
-        case 'clear-due': k.due = ''; k.dueTime = ''; break;
+        case 'clear-due': k.due = ''; k.dueTime = ''; k.repeat = 'none'; break;
         case 'pin': k.pinned = !k.pinned; haptic('select'); toast(k.pinned ? 'Pinned to the top of the column' : 'Unpinned'); break;
         case 'prio': k.priority = +b.dataset.p; haptic('select'); break;
         case 'copy': openCopySheet(id, back); return;
@@ -4342,8 +4418,9 @@ function openCard(id) {
     });
     inner.addEventListener('change', e => {
       const t = e.target, f = findCard(id); if (!f) return;
-      if (t.id === 'cs-due') { f.card.due = t.value; if (!t.value) f.card.dueTime = ''; save(); scheduleRender(); draw(); }
+      if (t.id === 'cs-due') { f.card.due = t.value; if (!t.value) { f.card.dueTime = ''; f.card.repeat = 'none'; } save(); scheduleRender(); draw(); }
       else if (t.id === 'cs-due-time') { f.card.dueTime = f.card.due ? t.value : ''; save(); scheduleRender(); draw(); }
+      else if (t.id === 'cs-repeat') { f.card.repeat = f.card.due ? t.value : 'none'; haptic('select'); save(); scheduleRender(); draw(); }
       else if (t.id === 'cs-job') { if (t.value) f.card.jobId = t.value; else delete f.card.jobId; save(); draw(); }
       else if (t.id === 'cs-move') {
         const to = findList(t.value);
