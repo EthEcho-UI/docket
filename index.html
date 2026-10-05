@@ -822,7 +822,7 @@ function seed() {
 function normalize(s) {
   if (!s || !Array.isArray(s.categories) || !s.categories.length) throw new Error('No categories found');
   s.version = 2;
-  s.settings = Object.assign({hideDone: false, theme: 'system', notify: false, workJob: null, workPeriod: 'week'}, s.settings || {});
+  s.settings = Object.assign({hideDone: false, autoMoveDone: true, theme: 'system', notify: false, workJob: null, workPeriod: 'week'}, s.settings || {});
   s.settings.notifyPrefs = Object.assign({timer: true, due: true, dueTime: '09:00'}, s.settings.notifyPrefs || {});
   if (!/^\d{2}:\d{2}$/.test(s.settings.notifyPrefs.dueTime)) s.settings.notifyPrefs.dueTime = '09:00';
   if (!PERIODS.some(p => p[0] === s.settings.workPeriod)) s.settings.workPeriod = 'week';
@@ -859,7 +859,7 @@ function normalize(s) {
     if (c.jobId && !jobIds.has(c.jobId)) delete c.jobId;
     c.lists = Array.isArray(c.lists) ? c.lists : [];
     c.lists.forEach(l => {
-      l.id = l.id || uid(); l.title = String(l.title || 'Untitled'); l.collapsed = !!l.collapsed;
+      l.id = l.id || uid(); l.title = String(l.title || 'Untitled'); l.collapsed = !!l.collapsed; l.isDone = !!l.isDone;
       l.cards = Array.isArray(l.cards) ? l.cards : [];
       l.cards.forEach(k => {
         k.id = k.id || uid(); k.title = String(k.title || 'Untitled'); k.desc = String(k.desc || '');
@@ -1362,11 +1362,34 @@ function withUndo(msg, fn) {
 }
 function startComposer(listId) { ui.composer = {listId, text: ''}; ui.focus = 'composer-input'; renderBoard(); }
 function startRename(listId) { ui.renamingList = listId; ui.focus = 'rename-list-input'; renderBoard(); }
+/* the column finished cards go to: one marked as Done, or one named like it */
+const DONE_NAME = /^(done|hotovo|dokon[čc]eno|completed|finished)$/i;
+const doneListOf = c => c.lists.find(l => l.isDone) || c.lists.find(l => DONE_NAME.test(l.title.trim()));
+/* returns a short message about where the card went, or '' */
+function moveForDone(card, done) {
+  if (!state.settings.autoMoveDone) return '';
+  const f = findCard(card.id); if (!f) return '';
+  const {cat: c, list: l} = f;
+  if (done) {
+    let dl = doneListOf(c), created = false;
+    if (!dl) { dl = newList('Done', {isDone: true}); c.lists.push(dl); created = true; }
+    if (dl === l) return '';
+    l.cards.splice(f.index, 1); card.fromList = l.id; dl.cards.unshift(card);
+    return created ? 'Moved to a new Done column' : `Moved to ${dl.title}`;
+  }
+  const dl = doneListOf(c);
+  if (l !== dl) return '';
+  const back = c.lists.find(x => x.id === card.fromList && x !== dl) || c.lists.find(x => x !== dl);
+  if (!back) return '';
+  l.cards.splice(f.index, 1); delete card.fromList; back.cards.unshift(card);
+  return `Moved back to ${back.title}`;
+}
 function setDone(card, done) {
   card.done = done;
   haptic(done ? 'success' : 'tap');
   const r = running();
   if (done && r && r.cardId === card.id) { stopTracking(); toast('Timer stopped'); }
+  return moveForDone(card, done);
 }
 
 /* ================= event delegation ================= */
@@ -1413,10 +1436,11 @@ document.addEventListener('click', e => {
     case 'track-stop': haptic('tap'); stopTracking(); commit(); if (timeDraw) timeDraw(); toast('Timer stopped'); break;
     case 'toggle-done': {
       const f = findCard(a.closest('.card').dataset.card); if (!f) break;
-      setDone(f.card, !f.card.done); commit();
-      if (f.card.done && state.settings.hideDone) {
-        toast('Marked done and hidden', {action: 'Undo', onAction: () => { f.card.done = false; commit(); }});
-      }
+      const card = f.card, moved = setDone(card, !card.done);
+      commit();
+      if (card.done && (moved || state.settings.hideDone)) {
+        toast(moved || 'Marked done and hidden', {action: 'Undo', onAction: () => { setDone(card, false); commit(); }});
+      } else if (moved) toast(moved);
       break;
     }
     case 'collapse': { const f = findList(lid); if (f) { f.list.collapsed = true; if (ui.composer && ui.composer.listId === lid) ui.composer = null; commit(); } break; }
@@ -1920,6 +1944,7 @@ function listMenu(anchor, lid) {
     {label: 'Add card', icon: 'plus', onSelect: () => startComposer(lid)},
     {label: 'Rename', icon: 'pencil', onSelect: () => startRename(lid)},
     {label: 'Collapse', icon: 'collapse', onSelect: () => { l.collapsed = true; commit(); }},
+    {label: 'Done column', hint: doneListOf(c) === l ? 'Finished cards go here' : 'Send finished cards here', icon: 'doneAll', checked: doneListOf(c) === l, onSelect: () => { const was = doneListOf(c) === l && l.isDone; c.lists.forEach(x => { x.isDone = false; }); if (!was) l.isDone = true; commit(); toast(was ? 'Done column follows the name again' : `Finished cards now go to ${l.title}`); }},
     {label: 'Move left', icon: 'arrowL', disabled: i === 0, onSelect: () => { moveItem(c.lists, i, i - 1); commit(); }},
     {label: 'Move right', icon: 'arrowR', disabled: i === c.lists.length - 1, onSelect: () => { moveItem(c.lists, i, i + 1); commit(); }},
     {label: 'Move to another category', icon: 'move', disabled: !others.length, onSelect: () => openMenu(anchor, [
@@ -1941,6 +1966,7 @@ function appMenu(anchor) {
   const s = state.settings;
   const ns = notifStatus();
   openMenu(anchor, [
+    {label: 'Move finished cards to Done', icon: 'move', toggle: true, checked: s.autoMoveDone, onSelect: () => { s.autoMoveDone = !s.autoMoveDone; commit(); }},
     {label: 'Hide completed cards', icon: 'doneAll', toggle: true, checked: s.hideDone, onSelect: () => { s.hideDone = !s.hideDone; commit(); }},
     {label: 'Theme', hint: themeName(s.theme), icon: 'palette', onSelect: openThemeSheet},
     {label: 'Jobs', hint: state.jobs.length ? state.jobs.map(j => j.name).join(', ') : 'For tracking work hours', icon: 'briefcase', onSelect: openJobsSheet},
@@ -3361,7 +3387,7 @@ function openCard(id) {
       const k = f.card;
       switch (b.dataset.cs) {
         case 'close': close(); return;
-        case 'done': setDone(k, !k.done); break;
+        case 'done': { const moved = setDone(k, !k.done); if (moved) toast(moved); break; }
         case 'track': unlockAudio(); trackCard(id); break;
         case 'focus': {
           const p = pr();
