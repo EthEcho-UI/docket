@@ -4,7 +4,7 @@ Read this first when you continue the project in a new conversation. It records 
 
 **To continue in a new chat:** give the assistant this file (or its link, https://github.com/EthEcho-UI/docket/blob/main/HANDOFF.md) and say what you want next. If the assistant runs on the user's server (Claude Code), the whole project also lives in `~/Documents/AgentWorkspace/projects/kanban-todo-app/` (code, push server, tests, logs, secrets).
 
-_Last updated: 2026-10-06._
+_Last updated: 2026-10-06 (shared notifications across devices)._
 
 ---
 
@@ -54,6 +54,8 @@ A phone-first, Trello-style to-do app with a calendar, focus timer, work-hours t
 - Pomodoro end; cards at their due time (or a morning time if they have no time); event reminders; one-off reminders, which can repeat with an optional end date.
 - Status check (permission, push server, device registration, last schedule sync, next reminder) with a **Fix** button, and a test button.
 - With the push server they arrive when Docket is closed. While Docket is open it also fires the next day's reminders itself as a backup.
+- **Every reminder reaches every device** that has notifications turned on, no matter which device (or the assistant) created it. All devices share one schedule on the push server through a secret group key stored in the synced data (`pushGroup`). Any device sends the schedule, even one with notifications off, so a reminder made on the laptop still reaches the phone. The newest data wins, so a device with older data can't overwrite a newer schedule. Needs GitHub sync (or the sync folder) so the devices share data.
+- **On/off is per device** (localStorage `docket.notify`); before 2026-10-06 it was a synced setting, and each device keeps its earlier choice. The status check lists the devices that get reminders, and the test button sends a test to all of them.
 
 **AI assistant** (✨ in the top bar on the phone; round ✨ button bottom-right on desktop; key A on desktop) — see section 4.
 
@@ -90,13 +92,14 @@ Everything is plain HTML/CSS/JS with no build step and no framework.
 - `wtasks[]` (work tasks added without time)
 - `events[] {id, title, date, endDate, allDay, start, end, color, notes, repeat, until, remind}`
 - `reminders[] {id, at, title, body, repeat, until}`
-- `pomo`, `pomoRun`, `settings {theme, accent, hideDone, autoMoveDone, notify, notifyPrefs, haptics, workJob, workPeriod}`, `savedAt`, `active`
+- `pomo`, `pomoRun`, `settings {theme, accent, hideDone, autoMoveDone, notify (legacy, now per device), notifyPrefs, haptics, workJob, workPeriod}`, `savedAt`, `active`
+- `pushGroup`: random 43-character secret shared by all devices; names the user's shared reminder schedule on the push server. Created once (only after the first GitHub/folder pull, so it can't make an old copy win).
 
-Device-only (never synced): localStorage `docket.github` (sync token), `docket.ai` (provider, keys{}, models{}, custom instructions), `docket.aimodels` (model-list cache), `docket.aichat` (chat); IndexedDB `docket` (sync-folder handle).
+Device-only (never synced): localStorage `docket.github` (sync token), `docket.ai` (provider, keys{}, models{}, custom instructions), `docket.aimodels` (model-list cache), `docket.aichat` (chat), `docket.notify` (notifications on for this device), `docket.pushgroup` (group and endpoint this device last registered, to leave an old group); IndexedDB `docket` (sync-folder handle).
 
 **Sync rule:** newest `savedAt` wins for the whole document (last-writer-wins). Every GitHub save is a commit in `docket-data`, so any earlier version can be restored from its history.
 
-**Reminders:** `reminderItems()` builds up to 100 reminders for the next 45 days (pomodoro, due cards, events, one-off and repeating reminders). They are sent to the push server (`POST /sync`) whenever they change, and fired locally by `scheduleLocal()` while the app is open (same tags, so duplicates replace each other).
+**Reminders:** `reminderItems()` builds up to 100 reminders for the next 45 days (pomodoro, due cards, events, one-off and repeating reminders). Every device sends them to the shared group on the push server (`POST /g/sync` with `group`, `savedAt`, `items`, and `endpoint` + `device` name when notifications are on there) whenever they change or newer data arrives, and they are fired locally by `scheduleLocal()` while the app is open (same tags, so duplicates replace each other).
 
 ## 4. AI assistant
 
@@ -111,17 +114,19 @@ Device-only (never synced): localStorage `docket.github` (sync token), `docket.a
 ## 5. Push server (Cloudflare Worker)
 
 Source: `projects/kanban-todo-app/output/push-worker/` on the user's server (not in the public repo).
-- One SQLite-backed Durable Object per push subscription stores the schedule and sets an **alarm** for the next reminder. When it fires, it sends an **empty VAPID-signed push**; the service worker then fetches the text from `/pending`.
-- Endpoints (POST, JSON with `endpoint`): `/sync`, `/pending`, `/test`, `/unsubscribe`, `/move` (subscription renewal), `/export`. `GET /` is a health check.
+- **Group** Durable Object (one per `pushGroup` key, named by its SHA-256): holds the user's one schedule, its `savedAt` (older data is refused), and the list of registered devices (max 20). Its **alarm** fires at the next reminder and delivers it to every device; devices whose push subscription is gone (404/410) are dropped.
+- **Inbox** Durable Object (one per push subscription): the device's outbox. Delivery puts the reminder there and sends an **empty VAPID-signed push**; the service worker then fetches the text from `/pending`.
+- Endpoints (POST, JSON): `/g/sync` (`group`, `savedAt`, `items`, optional `endpoint`, `device`), `/g/leave` (`group`, `endpoint`), `/g/test` (`group`, `device`: test to all devices), `/pending` (`endpoint`), `/move` (`endpoint`, `to`: subscription renewal, also moves group membership), `/unsubscribe`. The old per-device `/sync` and `/test` still work for out-of-date app copies. `GET /` is a health check.
+- Shared groups added 2026-10-06 (migration tag `v2`). Verified live with simulated devices: a reminder created by one device (and one by a device with notifications off) reached both devices' outboxes; a stale `savedAt` was refused; test-to-all, leave and move worked.
 - Deployed 2026-10-06. Verified live: CORS limited to `https://ethecho-ui.github.io`, `/sync` sets the alarm, the alarm fired on time, VAPID signing works.
 - Redeploy: `wrangler deploy` inside `push-worker/` (the secret is already set). Free plan (checked 2026-10-05): SQLite Durable Objects and alarms allowed, 100k requests/day, 10 ms CPU per invocation.
-- Each device must turn notifications on once (Settings → Notifications → Turn on / Fix) to register.
+- Each device must turn notifications on once (Settings → Notifications → Turn on / Fix) to register; from then on it gets every reminder from every device.
 
 ## 6. How to work on it
 
 - Edit `index.html` (and `sw.js` when needed), run the tests, commit, `git push`. GitHub Pages rebuilds in about 30–60 s; the page is network-first, so users get updates on reload (desktop: Ctrl+Shift+R if cached).
 - **Roll back the app:** `git revert <commit>` and push. **Restore user data:** take an older `docket-data.json` from the `docket-data` repo history and restore it in the app (Settings → Restore from backup).
-- **Tests:** `projects/kanban-todo-app/tests/` has jsdom smoke tests per feature (smoke5–16; table in `tests/README.md`). Each prints `ERRORS []` when clean. `smoke14` and `smoke16` take `phone|desktop`. Run all of them after every change.
+- **Tests:** `projects/kanban-todo-app/tests/` has jsdom smoke tests per feature (smoke5–17; table in `tests/README.md`). Each prints `ERRORS []` when clean. `smoke14` and `smoke16` take `phone|desktop`. Run all of them after every change.
 - **Tooling on the server:** no system Node. Use a Python venv with `nodejs-wheel-binaries` (run npm as `node …/nodejs_wheel/lib/node_modules/npm/bin/npm-cli.js`), install `jsdom@24` and set `NODE_PATH` to that `node_modules`. `openpyxl` reads exported Excel files back. Reinstall Wrangler with npm if it's missing.
 - jsdom cannot check layout, CSS cascade or touch feel. For media-query or "show only on X" CSS, check the rules statically, and ask the user to look on a real device (see the lesson in `system/canonical/LESSONS.md`).
 - Project bookkeeping lives in `projects/kanban-todo-app/` (`README.md`, `logs.md`, `errors.md`, `progress.md`, `summary.md`), following the user's AgentWorkspace rules.

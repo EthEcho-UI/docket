@@ -1022,6 +1022,8 @@ function normalize(s) {
   s.pomo = Object.assign({...POMO_DEFAULTS}, s.pomo || {});
   s.pomoRun = Object.assign({...POMO_IDLE}, s.pomoRun || {});
   s.savedAt = Number(s.savedAt) || 0;
+  /* secret key shared by all of the user's devices (via sync) so reminders reach every device */
+  if (typeof s.pushGroup !== 'string' || !/^[A-Za-z0-9_-]{22,100}$/.test(s.pushGroup)) delete s.pushGroup;
   s.wtasks = Array.isArray(s.wtasks) ? s.wtasks.filter(w => w && jobIds.has(w.jobId)).map(w => ({id: w.id || uid(), jobId: w.jobId, title: String(w.title || ''), cardId: w.cardId || null, created: Number(w.created) || Date.now()})) : [];
   s.tags = Array.isArray(s.tags)
     ? s.tags.filter(t => t && t.id).map(t => ({id: t.id, name: String(t.name || ''), color: TAG_COLORS.includes(t.color) ? t.color : 'slate', group: String(t.group || 'Your labels')}))
@@ -1210,10 +1212,16 @@ function chime() {
     });
   } catch (e) {}
 }
+/* on/off is per device (it used to be a synced setting, which turned other devices off too) */
+function devNotify(v) {
+  if (v !== undefined) { try { localStorage.setItem('docket.notify', v ? '1' : '0'); } catch (e) {} return v; }
+  let x = null; try { x = localStorage.getItem('docket.notify'); } catch (e) {}
+  return x === null ? !!state.settings.notify : x === '1';
+}
 function notifStatus() {
   if (!('Notification' in window)) return 'unavailable';
   if (Notification.permission === 'denied') return 'blocked';
-  if (Notification.permission === 'granted' && state.settings.notify) return 'on';
+  if (Notification.permission === 'granted' && devNotify()) return 'on';
   return 'off';
 }
 const NOTIF_TEXT = {on: 'On', off: 'Off', blocked: 'Blocked in browser settings', unavailable: 'Not available here'};
@@ -1222,20 +1230,36 @@ async function enableNotifications() {
   let p = Notification.permission;
   try { if (p === 'default') p = await Notification.requestPermission(); } catch (e) {}
   if (p !== 'granted') { toast('Notifications are blocked. Allow them in your browser’s site settings.'); return; }
-  state.settings.notify = true; save(); scheduleLocal();
+  devNotify(true); scheduleLocal();
   if (!pushOn()) { toast('Notifications on while Docket is open'); return; }
   try { await pushSubscription(true); await pushSync(true); toast('Notifications on. Reminders arrive even when Docket is closed.'); }
   catch (e) { console.warn('Push subscription failed', e); toast('Notifications are on, but the reminder server couldn’t be reached. Docket will retry.'); }
 }
 async function disableNotifications() {
-  state.settings.notify = false; save();
-  try { const sub = pushOn() && await pushSubscription(false); if (sub) { await pushPost('/unsubscribe', {endpoint: sub.endpoint}).catch(() => {}); await sub.unsubscribe(); } } catch (e) {}
+  devNotify(false); scheduleLocal();
+  try {
+    const sub = pushOn() && await pushSubscription(false);
+    if (sub) {
+      if (state.pushGroup) await pushPost('/g/leave', {group: state.pushGroup, endpoint: sub.endpoint}).catch(() => {});
+      await pushPost('/unsubscribe', {endpoint: sub.endpoint}).catch(() => {});
+      await sub.unsubscribe();
+    }
+  } catch (e) {}
   lastPushSig = '';
   toast('Notifications off');
 }
 
 /* ================= push reminders (server sends them while Docket is closed) ================= */
 const pushOn = () => /^https:/.test(PUSH_SERVER) && location.protocol === 'https:' && 'serviceWorker' in navigator && 'PushManager' in window;
+/* every device sends the shared schedule, even one with notifications off, so a reminder made anywhere reaches all devices */
+const groupOn = () => /^https:/.test(PUSH_SERVER) && location.protocol === 'https:';
+function deviceName() {
+  const ua = navigator.userAgent || '';
+  const os = /Android/.test(ua) ? (/Mobile/.test(ua) ? 'Android phone' : 'Android tablet') : /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad'
+    : /Windows/.test(ua) ? 'Windows PC' : /Macintosh/.test(ua) ? 'Mac' : /CrOS/.test(ua) ? 'Chromebook' : /Linux/.test(ua) ? 'Linux PC' : 'Device';
+  const br = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Firefox\//.test(ua) ? 'Firefox' : /SamsungBrowser/.test(ua) ? 'Samsung Internet' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : '';
+  return br ? `${os} · ${br}` : os;
+}
 const b64ToBytes = s => { const b = atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - s.length % 4) % 4)); return Uint8Array.from(b, c => c.charCodeAt(0)); };
 async function pushSubscription(create) {
   const reg = await navigator.serviceWorker.ready;
@@ -1305,23 +1329,39 @@ async function fireLocal(i) {
   haptic('alarm'); chime(); toast(`${i.title}: ${i.body}`);
   try { const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (reg) await reg.showNotification(i.title, {body: i.body, tag: i.tag, renotify: true, icon: 'icons/icon-192.png', badge: 'icons/badge-96.png'}); } catch (e) {}
 }
-const pushState = {lastOk: 0, err: ''};
+const pushState = {lastOk: 0, err: '', devices: null, names: [], registered: false};
 let pushTimer = 0, lastPushSig = '';
-function pushSyncSoon() { if (!pushOn() || notifStatus() !== 'on') return; clearTimeout(pushTimer); pushTimer = setTimeout(() => pushSync(false), 1200); }
+function pushSyncSoon() { if (!groupOn()) return; clearTimeout(pushTimer); pushTimer = setTimeout(() => pushSync(false), 1200); }
 async function pushSync(force) {
   try {
-    const sub = await pushSubscription(false); if (!sub) return;
-    const items = reminderItems(), sig = JSON.stringify(items);
+    if (!groupOn()) return;
+    if (!state.pushGroup) {
+      /* creating the key saves, so first load the newest synced data; otherwise this device's older copy could win */
+      if ((GH.status === 'on' && !GH.pulled) || (FS.status === 'on' && !FS.pulled)) return;
+      const b = crypto.getRandomValues(new Uint8Array(32));
+      state.pushGroup = btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      save();
+    }
+    const sub = notifStatus() === 'on' && pushOn() ? await pushSubscription(false) : null;
+    const endpoint = sub ? sub.endpoint : null, group = state.pushGroup;
+    /* the group key changed (another device's data won): leave the old group */
+    let joined = null; try { joined = JSON.parse(localStorage.getItem('docket.pushgroup') || 'null'); } catch (e) {}
+    if (joined && joined.endpoint && (joined.group !== group || joined.endpoint !== endpoint)) {
+      await pushPost('/g/leave', {group: joined.group, endpoint: joined.endpoint}).catch(() => {});
+    }
+    const items = reminderItems(), sig = JSON.stringify([group, endpoint, items]);
     if (!force && sig === lastPushSig) return;
-    await pushPost('/sync', {endpoint: sub.endpoint, items});
+    const r = await pushPost('/g/sync', {group, endpoint, device: deviceName(), items, savedAt: state.savedAt});
+    try { localStorage.setItem('docket.pushgroup', JSON.stringify({group, endpoint})); } catch (e) {}
     lastPushSig = sig; pushState.lastOk = Date.now(); pushState.err = '';
+    pushState.devices = r.devices; pushState.names = r.names || []; pushState.registered = !!r.registered;
   } catch (e) { pushState.err = e.message; console.warn('Reminder sync failed', e); }
 }
 async function notifHealth() {
   const rows = [], perm = 'Notification' in window ? Notification.permission : 'unsupported';
   rows.push(['Permission', perm === 'granted' ? 'ok' : perm === 'denied' ? 'bad' : 'warn',
     perm === 'granted' ? 'Allowed' : perm === 'denied' ? 'Blocked. Allow notifications for Docket in Android settings.' : perm === 'default' ? 'Not asked yet. Tap Fix.' : 'This browser can’t show notifications.']);
-  rows.push(['Turned on in Docket', state.settings.notify ? 'ok' : 'warn', state.settings.notify ? 'Yes' : 'No. Tap Fix.']);
+  rows.push(['On for this device', devNotify() ? 'ok' : 'warn', devNotify() ? 'Yes' : 'No. Tap Fix.']);
   if (!/^https:/.test(PUSH_SERVER)) rows.push(['While closed', 'warn', 'The push server isn’t set up yet, so reminders only arrive while Docket is open.']);
   else if (!pushOn()) rows.push(['While closed', 'warn', 'Needs Docket opened from its https address (or installed).']);
   else {
@@ -1330,6 +1370,10 @@ async function notifHealth() {
     let sub = null; try { sub = await pushSubscription(false); } catch (e) {}
     rows.push(['This device', sub ? 'ok' : 'warn', sub ? 'Registered for reminders while closed' : 'Not registered. Tap Fix.']);
     rows.push(['Schedule', pushState.lastOk ? 'ok' : pushState.err ? 'bad' : 'warn', pushState.lastOk ? `Sent to the server ${fmtStamp(pushState.lastOk)}` : pushState.err ? 'Last attempt failed: ' + pushState.err : 'Not sent yet. Tap Fix.']);
+    if (pushState.devices != null) rows.push(['Your devices', pushState.devices ? 'ok' : 'warn', pushState.devices
+      ? `${pushState.devices} ${pushState.devices === 1 ? 'device gets' : 'devices get'} every reminder: ${pushState.names.join(', ')}. Turn notifications on in each device to add it.`
+      : 'No device has notifications on yet.']);
+    if (!GH.status || GH.status !== 'on') rows.push(['Other devices', 'warn', 'Reminders reach your other devices once they share data with this one (Settings → GitHub sync).']);
   }
   const next = reminderItems()[0];
   rows.push(['Next reminder', next ? 'ok' : 'none', next ? `${next.title} · ${fmtStamp(next.at)}` : 'Nothing scheduled']);
@@ -1343,7 +1387,7 @@ function openNotifSheet() {
       const rems = state.reminders.slice().sort((a, b) => a.at - b.at);
       const needsFix = health && health.some(r => r[1] === 'bad' || r[1] === 'warn');
       inner.innerHTML = `<h2 class="sheet-title sheet-drag">Notifications</h2>`
-        + `<div class="toggle"><span>Notifications<small>${NOTIF_TEXT[ns]}${on && pushOn() ? ' · also when Docket is closed' : ''}</small></span>`
+        + `<div class="toggle"><span>Notifications<small>${NOTIF_TEXT[ns]} on this device${on && pushOn() ? ' · also when Docket is closed' : ''}</small></span>`
         + (ns === 'unavailable' || ns === 'blocked' ? '' : `<button type="button" class="btn sm${on ? '' : ' primary'}" data-x="toggle">${on ? 'Turn off' : 'Turn on'}</button>`) + `</div>`
         + `<div class="sec-head"><h3>Status</h3>${needsFix ? `<button type="button" class="btn sm primary" data-x="fix">Fix</button>` : ''}</div>`
         + (health ? `<ul class="health">${health.map(([k, st, txt]) => `<li><i class="${st}"></i><b>${k}</b><span>${esc(txt)}</span></li>`).join('')}</ul>` : `<p class="sheet-hint">Checking…</p>`)
@@ -1355,7 +1399,7 @@ function openNotifSheet() {
         + `<div class="sec-head"><h3>One-off reminders</h3></div>`
         + (rems.length ? rems.map(r => `<div class="task-row"><div class="entry" style="cursor:default"><span class="t"><b>${esc(r.title)}</b><small>${r.repeat !== 'none' ? `↻ ${repeatName(r.repeat)} at ${hhmm(r.at)}${r.until ? ' until ' + fmtDate(parseISO(r.until)) : ''}, from ${fmtDate(r.at)}` : fmtStamp(r.at) + (r.at < Date.now() ? ' · sent' : '')}${r.body ? ' · ' + esc(r.body) : ''}</small></span></div><button type="button" class="icon-btn sm" data-rm="${r.id}" aria-label="Delete reminder">${icon('x')}</button></div>`).join('') : '')
         + `<form class="rem-add" data-form="rem" novalidate><input id="rem-text" class="field" placeholder="Remind me to…" maxlength="120" autocomplete="off"><input id="rem-at" type="datetime-local" class="field"><span class="select-wrap"><select id="rem-repeat" class="select" aria-label="Repeat">${REPEATS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select></span><button type="submit" class="btn">${icon('bell')}Add</button></form>`
-        + (on && pushOn() ? `<div class="sheet-actions" style="justify-content:flex-start"><button type="button" class="btn" data-x="test">Send a test notification</button></div>` : '')
+        + (on && pushOn() ? `<div class="sheet-actions" style="justify-content:flex-start"><button type="button" class="btn" data-x="test">Send a test to all devices</button></div>` : '')
         + `<p class="sheet-hint">If reminders arrive late, turn off battery optimisation for Docket (or Chrome) in Android settings.</p>`;
     };
     const check = async () => { health = await notifHealth(); if (inner.isConnected) draw(); };
@@ -1378,7 +1422,11 @@ function openNotifSheet() {
       if (x.dataset.x === 'toggle') { if (notifStatus() === 'on') await disableNotifications(); else await enableNotifications(); }
       else if (x.dataset.x === 'fix') { await enableNotifications(); if (pushOn()) await pushSync(true); scheduleLocal(); }
       else if (x.dataset.x === 'test') {
-        try { const sub = await pushSubscription(true); const r = await pushPost('/test', {endpoint: sub.endpoint}); toast(r.ok ? 'Test sent. It should arrive in a few seconds.' : 'The push service refused the test (' + r.status + ').'); }
+        try {
+          await pushSubscription(true); await pushSync(true);
+          const r = await pushPost('/g/test', {group: state.pushGroup, device: deviceName()});
+          toast(r.ok ? `Test sent to ${r.devices} ${r.devices === 1 ? 'device' : 'devices'}. It should arrive in a few seconds.` : 'The push service refused the test (' + (r.statuses || []).join(', ') + ').');
+        }
         catch (err) { toast('Couldn’t reach the reminder server. Check your connection.'); }
       }
       check();
@@ -2489,13 +2537,14 @@ setInterval(() => { if (FS.status === 'on' && document.visibilityState === 'visi
 document.addEventListener('click', () => { if (FS.status === 'paused' && FS.handle && !FS.asked) { FS.asked = true; fsReconnect(); } }, true);
 function adopt(data, msg) {
   data.settings = Object.assign({}, state.settings, data.settings);
-  state = data; saveLocal(); render();
+  state = data; saveLocal(); render(); localSoon(); pushSyncSoon();
   if (msg) toast(msg);
 }
 async function fsPull() {
   if (FS.status !== 'on') return;
   try {
     const r = await fsRead();
+    if (!FS.pulled) { FS.pulled = true; pushSyncSoon(); }
     if (!r) { fsPushSoon(); return; }
     const data = normalize(JSON.parse(r.text));
     if (data.savedAt > state.savedAt) adopt(data, 'Loaded newer data from your sync folder');
@@ -2505,6 +2554,7 @@ async function fsPull() {
 async function fsFirstSync() {
   let r;
   try { r = await fsRead(); } catch (e) { fsFail(e); return; }
+  FS.pulled = true;
   if (!r) { await fsWrite(); toast(`Saving to “${FS.handle.name}”`); if (fsSheetDraw) fsSheetDraw(); return; }
   let data = null;
   try { data = normalize(JSON.parse(r.text)); } catch (e) {}
@@ -2627,6 +2677,7 @@ async function ghPull() {
   if (GH.status !== 'on' || GH.busy || GH.timer) return;
   try {
     const r = await ghRead();
+    if (!GH.pulled) { GH.pulled = true; pushSyncSoon(); }
     if (!r) { ghPushSoon(); return; }
     if (r.sha === GH.sha) return;
     const data = normalize(r.data);
@@ -2648,6 +2699,7 @@ async function ghConnect(repo, token) {
   if (!meta.private) throw Object.assign(new Error('That repository is public, so anyone could read your data. Make it private on GitHub, or use another repository.'), {fatal: true});
   GH.status = 'on'; ghSaveCfg();
   const remote = await ghRead();
+  GH.pulled = true;
   if (!remote) { await ghWrite(); toast(`Connected. Your data is now saved in ${repo}.`); return; }
   GH.sha = remote.sha;
   const data = normalize(remote.data);
@@ -3938,7 +3990,7 @@ const AI_TOOLS = [
     repeat: S('none, daily, weekdays, weekly, biweekly, monthly or yearly', {enum: REPEAT_KEYS}), repeat_until: S('YYYY-MM-DD, or empty string to clear'),
     reminder_minutes_before: {type: 'integer', description: 'Minutes before the start to notify; -1 for no reminder'}}, ['event_id']),
   fn('list_events', 'List calendar events and due cards between two dates.', {from: S('YYYY-MM-DD'), to: S('YYYY-MM-DD')}, ['from', 'to']),
-  fn('set_reminder', 'Send the user a phone notification at a specific local date and time, optionally repeating at the same time.', {at: S('First time, local, YYYY-MM-DDTHH:MM'), message: S('What the notification should say'), details: S('Extra line (optional)'),
+  fn('set_reminder', 'Send the user a notification (on all their devices) at a specific local date and time, optionally repeating at the same time.', {at: S('First time, local, YYYY-MM-DDTHH:MM'), message: S('What the notification should say'), details: S('Extra line (optional)'),
     repeat: S('none, daily, weekdays, weekly, biweekly, monthly or yearly', {enum: REPEAT_KEYS}), until: S('Last date it repeats, YYYY-MM-DD (optional)')}, ['at', 'message'])
 ];
 const norm = s => String(s || '').trim().toLowerCase();
@@ -4055,7 +4107,7 @@ function aiRun(name, a) {
       if (!(at > Date.now())) return {error: 'The time must be in the future, as YYYY-MM-DDTHH:MM local time.'};
       const repeat = REPEAT_KEYS.includes(a.repeat) ? a.repeat : 'none';
       state.reminders.push({id: uid(), at, title: String(a.message).slice(0, 120), body: String(a.details || '').slice(0, 300), repeat, until: validDate(a.until) ? a.until : ''});
-      return {ok: true, at: fmtStamp(at), repeat: repeat === 'none' ? 'no' : repeatName(repeat), notifications_on: notifStatus() === 'on', reaches_phone_when_closed: notifStatus() === 'on' && pushOn()};
+      return {ok: true, at: fmtStamp(at), repeat: repeat === 'none' ? 'no' : repeatName(repeat), notifications_on_this_device: notifStatus() === 'on', devices_that_get_it: pushState.devices};
     }
   }
   return {error: 'Unknown tool'};
@@ -4085,7 +4137,8 @@ function aiSystemPrompt() {
   const tagGroupsText = tagGroups().map(g => `${g}: ${state.tags.filter(t => t.group === g && t.name).map(t => t.name).join(', ')}`).join('; ');
   const upcoming = [];
   for (let i = 0; i < 7 && upcoming.length < 15; i++) { const d = new Date(); d.setDate(d.getDate() + i); const key = dayKey(d.getTime()); itemsOn(key).filter(it => !it.done).forEach(it => upcoming.push(`${key} ${it.allDay ? '' : it.time + ' '}${it.kind === 'event' ? 'event' : 'task'}: ${it.title}`)); }
-  const notif = notifStatus() === 'on' ? (pushOn() ? 'on, and they reach the phone even when Docket is closed' : 'on, but only while Docket is open') : 'OFF';
+  const devs = pushState.devices ? `They go to all ${pushState.devices} of the user's devices with notifications on (${pushState.names.join(', ')}), even when Docket is closed, no matter which device set them.` : '';
+  const notif = (notifStatus() === 'on' ? (pushOn() ? 'on for this device' : 'on, but only while Docket is open') : 'OFF on this device') + (devs ? '. ' + devs : '');
   return `# Role
 You are the built-in assistant of Docket, the user's personal to-do, calendar and work-hours app. You help by actually changing their data with the tools below, and by answering questions about it. You are practical, quick and careful.
 
@@ -4547,12 +4600,14 @@ let installPrompt = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; });
 window.addEventListener('appinstalled', () => { installPrompt = null; toast('Docket is installed. Open it from your home screen.'); });
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('sw.js').then(() => { if (notifStatus() === 'on') pushSync(true); }).catch(err => console.warn('Service worker registration failed', err));
+  navigator.serviceWorker.register('sw.js').then(() => pushSync(true)).catch(err => console.warn('Service worker registration failed', err));
 }
 
 /* ================= boot ================= */
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 render();
+/* notifications on/off became per device: keep this device's earlier choice */
+try { if (localStorage.getItem('docket.notify') === null) devNotify(!!state.settings.notify); } catch (e) {}
 scheduleLocal();
 /* read-only hook for diagnostics and automated checks */
 window.docketDebug = {reminderItems: () => reminderItems(), health: () => notifHealth()};
