@@ -1,5 +1,5 @@
 /* Docket service worker: offline app shell, cached fonts/libraries, push reminders */
-const VERSION = 'docket-v3';
+const VERSION = 'docket-v4';
 const RUNTIME = 'docket-runtime';
 const PUSH_SERVER = 'https://docket-push.ethecho-ui.workers.dev';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/favicon-32.png', './icons/badge-96.png'];
@@ -18,7 +18,8 @@ self.addEventListener('install', e => {
 
 self.addEventListener('activate', e => {
   e.waitUntil((async () => {
-    for (const k of await caches.keys()) if (k !== VERSION && k !== RUNTIME) await caches.delete(k);
+    /* only our own caches: every *.github.io project site shares this origin and its Cache Storage */
+    for (const k of await caches.keys()) if (k.startsWith('docket-') && k !== VERSION && k !== RUNTIME) await caches.delete(k);
     await self.clients.claim();
   })());
 });
