@@ -328,10 +328,9 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 .note-item .field{flex:1}
 .note-item .icon-btn{margin-top:4px}
 .cs-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:12px;border-top:1px solid var(--line)}
-.trash-drop{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(140%) scale(.8);width:58px;height:58px;border-radius:50%;background:var(--danger);color:#fff;display:flex;align-items:center;justify-content:center;z-index:60;pointer-events:none;box-shadow:var(--shadow-lift);opacity:0;transition:transform .18s cubic-bezier(.2,.8,.2,1),opacity .18s ease}
-.trash-drop.is-near{transform:translateX(-50%) translateY(0) scale(1)}
-.trash-drop .ic{width:26px;height:26px}
-.trash-drop.danger-hot{transform:translateX(-50%) translateY(0) scale(1.14)}
+.trash-drop{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(140%) scale(.8);width:72px;height:72px;border-radius:50%;background:var(--danger);color:#fff;display:flex;align-items:center;justify-content:center;z-index:60;pointer-events:none;box-shadow:var(--shadow-lift);opacity:0;transition:transform .26s cubic-bezier(.34,1.76,.64,1),opacity .18s ease}
+.trash-drop .ic{width:32px;height:32px;transition:width .18s cubic-bezier(.34,1.76,.64,1),height .18s cubic-bezier(.34,1.76,.64,1)}
+.trash-drop.danger-hot .ic{width:36px;height:36px}
 .ghost.to-trash{transition:transform .18s ease,opacity .18s ease!important}
 
 /* ---------- time & focus ---------- */
@@ -2073,11 +2072,11 @@ function updateTrash() {
     const near = Math.max(0, Math.min(1, 1 - distFromBottom / approach));
     const held = Math.min(1, (performance.now() - drag.startedAt) / 1500) * 0.15;
     const rise = (140 * (1 - near)).toFixed(1);
-    const scale = (0.8 + near * 0.2).toFixed(2);
+    drag.overTrash = distFromBottom < 54;
+    const scale = (drag.overTrash ? 1.3 : 0.8 + near * 0.2).toFixed(2);
     trashEl.style.transform = `translateX(-50%) translateY(${rise}%) scale(${scale})`;
     trashEl.style.opacity = Math.min(1, 0.15 + near * 0.75 + held).toFixed(2);
     trashEl.classList.toggle('is-near', distFromBottom < zone);
-    drag.overTrash = distFromBottom < 54;
     trashEl.classList.toggle('danger-hot', drag.overTrash);
   } else {
     trashEl.style.transform = ''; trashEl.style.opacity = '0'; trashEl.classList.remove('is-near', 'danger-hot'); drag.overTrash = false;
