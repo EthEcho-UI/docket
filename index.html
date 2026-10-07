@@ -123,6 +123,7 @@ html.dragging,html.dragging *{cursor:grabbing!important}
 .chip{display:inline-flex;align-items:center;gap:4px;font:500 11.5px/1 var(--font-mono);color:var(--muted);font-variant-numeric:tabular-nums}
 .chip .ic{width:14px;height:14px}
 .chip.late{color:var(--danger)} .chip.soon{color:var(--warn)} .chip.ok{color:var(--good)} .chip.live{color:var(--accent);font-weight:600}
+.chip.cl-last{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .live-dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--danger);animation:pulse 1.6s ease-in-out infinite}
 .chip .live-dot{width:7px;height:7px;margin-right:2px}
 @keyframes pulse{50%{opacity:.3}}
@@ -285,6 +286,8 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 .select-wrap::after{content:"";position:absolute;right:13px;top:50%;width:7px;height:7px;border-right:1.6px solid var(--muted);border-bottom:1.6px solid var(--muted);transform:translateY(-70%) rotate(45deg);pointer-events:none}
 .select{appearance:none;-webkit-appearance:none;max-width:100%;border:0;border-radius:9px;background:var(--hover);color:var(--ink);padding:9px 34px 9px 12px;font:500 16px/1.2 var(--font-ui);cursor:pointer;text-overflow:ellipsis}
 .select-wrap.block .select{width:100%;min-height:46px}
+/* the native dropdown popup doesn't inherit --hover, only --ink; set its own background explicitly so dark-theme (light) text never lands on the browser's default white popup */
+.select option,.select optgroup{background-color:var(--sheet);color:var(--ink)}
 .cs-sec{padding:14px 0 16px;border-top:1px solid var(--line)}
 .cs-sec-head{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:28px;margin-bottom:8px}
 .cs-sec h3{margin:0;font:600 11.5px/1 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
@@ -313,7 +316,18 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 .cl-text{flex:1;min-width:0;border:0;outline:none;background:none;padding:8px 6px;border-radius:7px;color:var(--ink);font:16px/1.3 var(--font-ui)}
 .cl-text:focus{background:var(--hover)}
 .cl li.on .cl-text{color:var(--muted);text-decoration:line-through}
+.cl-handle{width:26px;height:26px;cursor:grab;touch-action:none}
+.cl-handle .ic{width:14px;height:14px}
+.cl li.cl-dragging{opacity:.55}
+.cl li .chip{flex:none;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cl-extra{display:flex;flex-direction:column;gap:8px;min-height:0!important;padding:4px 6px 12px 36px;margin-top:-4px}
+.cl-extra-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.field.sm{padding:7px 10px;font-size:14px;min-height:0}
 .cs-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:12px;border-top:1px solid var(--line)}
+.trash-drop{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:58px;height:58px;border-radius:50%;background:var(--danger);color:#fff;display:flex;align-items:center;justify-content:center;z-index:60;pointer-events:none;box-shadow:var(--shadow-lift);transition:transform .12s ease}
+.trash-drop .ic{width:26px;height:26px}
+.trash-drop.danger-hot{transform:translateX(-50%) scale(1.14)}
+.ghost.to-trash{transition:transform .18s ease,opacity .18s ease!important}
 
 /* ---------- time & focus ---------- */
 .time-top{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;padding:0 0 14px;background:var(--sheet)}
@@ -597,12 +611,14 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
     <nav class="tabs" id="tabs" aria-label="Categories"></nav>
     <button type="button" class="icon-btn top-btn" id="ai-btn" data-action="assistant" aria-label="AI assistant"></button>
     <button type="button" class="icon-btn top-btn" id="cal-btn" data-action="calendar" aria-label="Calendar"></button>
+    <button type="button" class="icon-btn top-btn" id="notes-btn" data-action="notes" aria-label="Notes"></button>
     <button type="button" class="icon-btn top-btn" id="time-btn" data-action="time" aria-label="Focus timer and work hours"></button>
     <button type="button" class="icon-btn" id="app-menu-btn" data-action="menu" aria-label="Settings and backup"></button>
   </header>
   <main class="board" id="board" aria-label="Lists"></main>
 </div>
 <div class="dock" id="dock" hidden></div>
+<div class="trash-drop" id="trash-drop" hidden aria-hidden="true"></div>
 <button type="button" class="ai-fab" id="ai-fab" data-action="assistant" aria-label="AI assistant" title="AI assistant (A)"></button>
 <div id="layer"></div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
@@ -1022,6 +1038,7 @@ function normalize(s) {
   s.pomo = Object.assign({...POMO_DEFAULTS}, s.pomo || {});
   s.pomoRun = Object.assign({...POMO_IDLE}, s.pomoRun || {});
   s.savedAt = Number(s.savedAt) || 0;
+  s.notes = typeof s.notes === 'string' ? s.notes : '';
   /* secret key shared by all of the user's devices (via sync) so reminders reach every device */
   if (typeof s.pushGroup !== 'string' || !/^[A-Za-z0-9_-]{22,100}$/.test(s.pushGroup)) delete s.pushGroup;
   s.wtasks = Array.isArray(s.wtasks) ? s.wtasks.filter(w => w && jobIds.has(w.jobId)).map(w => ({id: w.id || uid(), jobId: w.jobId, title: String(w.title || ''), cardId: w.cardId || null, created: Number(w.created) || Date.now()})) : [];
@@ -1038,6 +1055,7 @@ function normalize(s) {
   s.categories.forEach(c => {
     c.id = c.id || uid(); c.name = String(c.name || 'Untitled');
     c.color = LABEL_KEYS.includes(c.color) ? c.color : 'ultra';
+    c.doneMode = ['move', 'leave', 'hide'].includes(c.doneMode) ? c.doneMode : '';
     const legacyNames = c.labels && typeof c.labels === 'object' ? c.labels : {};
     delete c.labels;
     if (c.jobId && !jobIds.has(c.jobId)) delete c.jobId;
@@ -1055,7 +1073,10 @@ function normalize(s) {
           k.labels.filter(x => LABEL_KEYS.includes(x)).forEach(x => { const id = legacyTag(String(legacyNames[x] || '').trim(), x); if (!k.tags.includes(id)) k.tags.push(id); });
           delete k.labels;
         }
-        k.checklist = Array.isArray(k.checklist) ? k.checklist.map(i => ({id: i.id || uid(), text: String(i.text || ''), done: !!i.done})) : [];
+        k.checklist = Array.isArray(k.checklist) ? k.checklist.map(i => {
+          const due = /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '';
+          return {id: i.id || uid(), text: String(i.text || ''), done: !!i.done, due, dueTime: /^\d{2}:\d{2}$/.test(i.dueTime || '') && due ? i.dueTime : '', note: String(i.note || '')};
+        }) : [];
         k.created = k.created || Date.now();
         if (k.jobId && k.jobId !== '__none' && !jobIds.has(k.jobId)) delete k.jobId;
       });
@@ -1490,8 +1511,11 @@ const dockEl = $('#dock');
 $('#app-menu-btn').innerHTML = icon('dotsV');
 $('#time-btn').innerHTML = icon('timer');
 $('#cal-btn').innerHTML = icon('cal');
+$('#notes-btn').innerHTML = icon('notes');
 $('#ai-btn').innerHTML = icon('sparkle');
 $('#ai-fab').innerHTML = icon('sparkle');
+const trashEl = $('#trash-drop');
+trashEl.innerHTML = icon('trash');
 
 let themeApplied = false;
 function applyTheme() {
@@ -1535,6 +1559,8 @@ function cardHTML(c, k, r) {
   if (k.checklist.length) {
     const n = k.checklist.filter(i => i.done).length;
     meta.push(`<span class="chip${n === k.checklist.length ? ' ok' : ''}">${icon('checklist')}${n}/${k.checklist.length}</span>`);
+    const last = k.checklist[k.checklist.length - 1], lastText = last.text.trim();
+    if (lastText) meta.push(`<span class="chip cl-last" title="${esc(lastText)}">${esc(lastText.length > 28 ? lastText.slice(0, 27) + '…' : lastText)}</span>`);
   }
   if (k.desc.trim()) meta.push(`<span class="chip" title="Has notes">${icon('notes')}</span>`);
   return `<article class="card${k.done ? ' is-done' : ''}${k.pinned ? ' is-pinned' : ''}" data-card="${k.id}" tabindex="0">` + (k.pinned ? `<span class="pin-star" title="Pinned">${icon('star')}</span>` : '')
@@ -1553,7 +1579,8 @@ function listHTML(c, l, r) {
       + `${icon('expand')}<span class="list-count">${open}</span><span class="v-title">${esc(l.title)}</span></button>`
       + `<div class="cards" data-cards></div></section>`;
   }
-  const visible = orderedCards(l, state.settings.hideDone ? l.cards.filter(k => !k.done) : l.cards);
+  const hideThis = state.settings.hideDone || doneModeOf(c) === 'hide';
+  const visible = orderedCards(l, hideThis ? l.cards.filter(k => !k.done) : l.cards);
   const hidden = l.cards.length - visible.length;
   const title = ui.renamingList === l.id
     ? `<input id="rename-list-input" class="list-title-input" data-rename="${l.id}" value="${esc(l.title)}" maxlength="80" enterkeyhint="done" autocomplete="off" aria-label="List name">`
@@ -1564,7 +1591,7 @@ function listHTML(c, l, r) {
       + `<div class="composer-row"><button type="button" class="btn primary" data-action="composer-add">Add card</button>`
       + `<button type="button" class="icon-btn" data-action="composer-close" aria-label="Stop adding cards">${icon('x')}</button></div></div>`
     : `<footer class="list-foot"><button type="button" class="add-card" data-action="add-card">${icon('plus')}<span>Add card</span></button>`
-      + (hidden ? `<button type="button" class="hidden-note" data-action="show-done">${hidden} done hidden</button>` : '') + `</footer>`;
+      + (hidden && state.settings.hideDone ? `<button type="button" class="hidden-note" data-action="show-done">${hidden} done hidden</button>` : '') + `</footer>`;
   return `<section class="list" data-list="${l.id}">`
     + `<header class="list-head" data-drag="list">${title}<span class="list-count" title="Open cards">${l.sort !== 'manual' ? `<span class="sort-ic" title="Sorted by ${l.sort === 'due' ? 'due date' : 'priority'}">${icon(l.sort === 'due' ? 'cal' : 'flag')}</span>` : ''}${open}</span>`
     + `<button type="button" class="icon-btn" data-action="collapse" aria-label="Collapse ${esc(l.title)}">${icon('collapse')}</button>`
@@ -1581,7 +1608,7 @@ function addListHTML() {
 
 /* transient UI state (not saved) */
 const ui = {composer: null, addingList: false, addListText: '', renamingList: null, focus: null, scrollListEnd: null, scroll: {},
-  timeTab: 'focus', allTasks: false, pomoSetOpen: false, hours: {from: '', to: ''}, stats: {job: 'all', period: 'month', offset: 0}};
+  timeTab: 'focus', allTasks: false, pomoSetOpen: false, hours: {from: '', to: ''}, stats: {job: 'all', period: 'month', offset: 0}, clOpen: null};
 
 function renderBoard() {
   const c = currentCat(), r = running();
@@ -1685,24 +1712,34 @@ function startRename(listId) { ui.renamingList = listId; ui.focus = 'rename-list
 /* the column finished cards go to: one marked as Done, or one named like it */
 const DONE_NAME = /^(done|hotovo|dokon[čc]eno|completed|finished)$/i;
 const doneListOf = c => c.lists.find(l => l.isDone) || c.lists.find(l => DONE_NAME.test(l.title.trim()));
+/* a board's own placement rule for finished cards, or the global setting if it hasn't set one */
+const doneModeOf = c => c.doneMode || (state.settings.autoMoveDone ? 'move' : 'leave');
 /* returns a short message about where the card went, or '' */
 function moveForDone(card, done) {
-  if (!state.settings.autoMoveDone) return '';
   const f = findCard(card.id); if (!f) return '';
   const {cat: c, list: l} = f;
-  if (done) {
-    let dl = doneListOf(c), created = false;
-    if (!dl) { dl = newList('Done', {isDone: true}); c.lists.push(dl); created = true; }
-    if (dl === l) return '';
-    l.cards.splice(f.index, 1); card.fromList = l.id; dl.cards.unshift(card);
-    return created ? 'Moved to a new Done column' : `Moved to ${dl.title}`;
+  const mode = doneModeOf(c);
+  if (mode === 'move') {
+    if (done) {
+      let dl = doneListOf(c), created = false;
+      if (!dl) { dl = newList('Done', {isDone: true}); c.lists.push(dl); created = true; }
+      if (dl === l) return '';
+      l.cards.splice(f.index, 1); card.fromList = l.id; dl.cards.unshift(card);
+      return created ? 'Moved to a new Done column' : `Moved to ${dl.title}`;
+    }
+    const dl = doneListOf(c);
+    if (l !== dl) return '';
+    const back = c.lists.find(x => x.id === card.fromList && x !== dl) || c.lists.find(x => x !== dl);
+    if (!back) return '';
+    l.cards.splice(f.index, 1); delete card.fromList; back.cards.unshift(card);
+    return `Moved back to ${back.title}`;
   }
-  const dl = doneListOf(c);
-  if (l !== dl) return '';
-  const back = c.lists.find(x => x.id === card.fromList && x !== dl) || c.lists.find(x => x !== dl);
-  if (!back) return '';
-  l.cards.splice(f.index, 1); delete card.fromList; back.cards.unshift(card);
-  return `Moved back to ${back.title}`;
+  if (mode === 'leave' && done) {
+    const idx = l.cards.indexOf(card);
+    if (idx > -1 && idx !== l.cards.length - 1) { l.cards.splice(idx, 1); l.cards.push(card); }
+  }
+  /* 'hide' (and 'leave') otherwise just stay where they are; rendering hides them for 'hide' */
+  return '';
 }
 /* a repeating card that gets finished leaves a fresh copy in its place with the next due date */
 function spawnNext(card) {
@@ -1774,6 +1811,7 @@ document.addEventListener('click', e => {
     case 'menu': appMenu(a); break;
     case 'time': openTimePanel(); break;
     case 'calendar': openCalendar(); break;
+    case 'notes': openNotesSheet(); break;
     case 'assistant': openAssistant(); break;
     case 'open-focus': openTimePanel('focus'); break;
     case 'open-hours': openTimePanel('hours'); break;
@@ -1832,6 +1870,32 @@ document.addEventListener('keydown', e => {
     return;
   }
   if (e.key === 'Escape') { if (menu) closeMenu(); else if (sheet) closeSheet(); else if (aiDock) closeAiDock(); return; }
+  /* desktop only: Ctrl/Cmd+C copies the focused card (or the one open in the card window), Ctrl/Cmd+V pastes it into the relevant list */
+  if (wide.matches && (e.ctrlKey || e.metaKey) && !e.altKey && !(t.closest && t.closest('input, textarea, select, [contenteditable]'))) {
+    if (e.key === 'c' || e.key === 'C') {
+      const focusedCard = t.closest && t.closest('.card[data-card]');
+      const cid = (focusedCard && focusedCard.dataset.card) || openCardId;
+      const f = cid && findCard(cid);
+      if (f) { clipboardCard = JSON.parse(JSON.stringify(f.card)); toast(`Copied “${f.card.title}”`); e.preventDefault(); }
+      return;
+    }
+    if ((e.key === 'v' || e.key === 'V') && clipboardCard) {
+      let targetListId = null;
+      const focusedCard = t.closest && t.closest('.card[data-card]');
+      if (focusedCard) { const f = findCard(focusedCard.dataset.card); if (f) targetListId = f.list.id; }
+      else if (openCardId) { const f = findCard(openCardId); if (f) targetListId = f.list.id; }
+      else { const focusedList = t.closest && t.closest('.list[data-list]'); if (focusedList) targetListId = focusedList.dataset.list; }
+      if (!targetListId) { const l = currentCat().lists.find(x => !x.collapsed) || currentCat().lists[0]; if (l) targetListId = l.id; }
+      const to = targetListId && findList(targetListId);
+      if (to) {
+        const cp = cloneCard(clipboardCard); cp.done = false; delete cp.fromList;
+        to.list.cards.push(cp);
+        haptic('success'); commit(); toast(`Pasted “${cp.title}” into ${to.list.title}`);
+        e.preventDefault();
+      }
+      return;
+    }
+  }
   /* keyboard shortcuts on a computer: N = new card in the first open list, T = timer panel */
   if (!sheet && !menu && !e.ctrlKey && !e.metaKey && !e.altKey && !(t.closest && t.closest('input, textarea, select, [contenteditable]'))) {
     if (e.key === 'n' || e.key === 'N') { const l = currentCat().lists.find(x => !x.collapsed); if (l) { e.preventDefault(); startComposer(l.id); } return; }
@@ -1875,6 +1939,8 @@ boardEl.addEventListener('wheel', e => {
 
 /* ================= drag & drop (pointer events, touch long-press) ================= */
 let pend = null, drag = null, settling = false;
+/* desktop Ctrl+C/Ctrl+V clipboard (one card, in memory only) */
+let clipboardCard = null;
 
 document.addEventListener('pointerdown', e => {
   if (drag || pend || settling) return;
@@ -1930,7 +1996,7 @@ function beginDrag() {
   ghost.style.width = r.width + 'px'; ghost.style.height = r.height + 'px';
   document.body.appendChild(ghost);
   drag = {
-    el, type: p.type, id: p.id, x: p.lx, y: p.ly, offX: p.x - r.left, offY: p.y - r.top, ghost, hover: null, raf: 0,
+    el, type: p.type, id: p.id, x: p.lx, y: p.ly, offX: p.x - r.left, offY: p.y - r.top, ghost, hover: null, raf: 0, overTrash: false, startedAt: performance.now(),
     flipSel: p.type === 'card' ? '#board .card' : p.type === 'list' ? '#board > .list, #board > .add-list' : '#tabs > .tab[data-cat], #tabs > .tab-add'
   };
   el.classList.add('is-placeholder');
@@ -1984,9 +2050,26 @@ function placeInto(cont, before) {
   flip(() => cont.insertBefore(el, before));
 }
 
+/* drag a card toward the bottom of the screen to drop it on the trash; fades in and reddens as it gets closer */
+function updateTrash() {
+  const zone = 130, distFromBottom = innerHeight - drag.y;
+  if (distFromBottom < zone) {
+    trashEl.hidden = false;
+    const near = Math.max(0, Math.min(1, 1 - distFromBottom / zone));
+    const held = Math.min(1, (performance.now() - drag.startedAt) / 1500) * 0.15;
+    trashEl.style.opacity = Math.min(1, 0.3 + near * 0.6 + held).toFixed(2);
+    drag.overTrash = distFromBottom < 54;
+    trashEl.classList.toggle('danger-hot', drag.overTrash);
+  } else {
+    trashEl.hidden = true; trashEl.style.opacity = '0'; drag.overTrash = false; trashEl.classList.remove('danger-hot');
+  }
+}
+
 function updateTarget() {
   const {type, x, y, el} = drag;
   if (type === 'card') {
+    updateTrash();
+    if (drag.overTrash) { setHover(null); return; }
     const list = listAt(x, y);
     setHover(list);
     if (!list) return;
@@ -2079,6 +2162,18 @@ function endDrag() {
   suppressUntil = performance.now() + 400;
   if (d.hover) d.hover.classList.remove('is-drop');
   document.documentElement.classList.remove('dragging');
+  trashEl.hidden = true; trashEl.style.opacity = '0'; trashEl.classList.remove('danger-hot');
+  if (d.type === 'card' && d.overTrash) {
+    const f = findCard(d.el.dataset.card);
+    d.ghost.style.transition = 'transform .18s ease, opacity .18s ease';
+    d.ghost.style.opacity = '0';
+    d.ghost.classList.add('to-trash');
+    setTimeout(() => d.ghost.remove(), 180);
+    settling = false;
+    if (f) { haptic('warn'); const {list} = f, card = f.card; withUndo('Card deleted', () => { const r = running(); if (r && r.cardId === card.id) stopTracking(); list.cards.splice(list.cards.indexOf(card), 1); }); }
+    else render();
+    return;
+  }
   try { commitDrop(d); } catch (err) { console.error('Drop failed', err); }
   haptic('drop');
   save();
@@ -2143,7 +2238,7 @@ function enableSwipeClose(el) {
     else el.style.transform = '';
   };
   el.addEventListener('touchstart', e => {
-    mode = (wide.matches || e.touches.length !== 1 || e.target.closest('input, textarea, select, .chips')) ? 'skip' : null;
+    mode = (wide.matches || e.touches.length !== 1 || e.target.closest('input, textarea, select, .chips, [data-cl-drag]')) ? 'skip' : null;
     if (mode) return;
     const t = e.touches[0]; y0 = t.clientY; x0 = t.clientX; t0 = e.timeStamp; dy = 0;
   }, {passive: true});
@@ -2284,6 +2379,13 @@ function categoryMenu(anchor) {
       {label: 'No job', icon: 'x', checked: !c.jobId, onSelect: () => { delete c.jobId; commit(); }},
       {type: 'sep'},
       {label: 'New job…', icon: 'plus', onSelect: () => openJobEditor(null, {linkCat: c.id})}
+    ])},
+    {label: 'Finished cards', hint: {move: 'Move to Done', leave: 'Leave in place', hide: 'Hidden'}[doneModeOf(c)] + (c.doneMode ? '' : ' (default)'), icon: 'doneAll', onSelect: () => openMenu(anchor, [
+      {type: 'title', label: `Finished cards in ${c.name}`},
+      {label: 'Use the global default', hint: state.settings.autoMoveDone ? 'Move to Done' : 'Leave in place', checked: !c.doneMode, onSelect: () => { delete c.doneMode; commit(); }},
+      {label: 'Move to the Done column', checked: c.doneMode === 'move', onSelect: () => { c.doneMode = 'move'; commit(); }},
+      {label: 'Leave at the bottom of the list', checked: c.doneMode === 'leave', onSelect: () => { c.doneMode = 'leave'; commit(); }},
+      {label: 'Hide', checked: c.doneMode === 'hide', onSelect: () => { c.doneMode = 'hide'; commit(); }}
     ])},
     {label: 'Move left', icon: 'arrowL', disabled: i === 0, onSelect: () => { moveItem(state.categories, i, i - 1); commit(); }},
     {label: 'Move right', icon: 'arrowR', disabled: i === n - 1, onSelect: () => { moveItem(state.categories, i, i + 1); commit(); }},
@@ -3646,15 +3748,22 @@ function openTagPicker(cardId, back) {
       + `<input id="tag-q" class="field" placeholder="Search, or type a new tag and press Enter" autocomplete="off" enterkeyhint="done" aria-label="Search tags">`
       + `<div class="tp-body"></div>`
       + `<div class="sheet-actions"><button type="button" class="btn" data-x="manage">Manage tags</button><span class="grow"></span><button type="button" class="btn primary" data-x="done">Done</button></div>`;
+    const tagPick = (t, sel) => `<button type="button" class="lp${sel.has(t.id) ? ' on' : ''}" data-tag="${t.id}" style="--c:var(--l-${t.color})" aria-pressed="${sel.has(t.id)}"><i></i><span>${esc(tagLabel(t))}</span></button>`;
     const draw = () => {
       const f = findCard(cardId); if (!f) { close(); return; }
       const sel = new Set(f.card.tags), ql = q.trim().toLowerCase();
+      let mostUsedHTML = '';
+      if (!ql) {
+        const usage = new Map();
+        allCards(k => k.tags.forEach(id => usage.set(id, (usage.get(id) || 0) + 1)));
+        const mostUsed = state.tags.filter(t => usage.get(t.id) > 0).sort((a, b) => usage.get(b.id) - usage.get(a.id)).slice(0, 8);
+        if (mostUsed.length) mostUsedHTML = `<div class="tg">Most used</div><div class="label-pick">` + mostUsed.map(t => tagPick(t, sel)).join('') + `</div>`;
+      }
       const body = tagGroups().map(g => {
         const ts = state.tags.filter(t => t.group === g && (!ql || tagLabel(t).toLowerCase().includes(ql)));
-        return ts.length ? `<div class="tg">${esc(g)}</div><div class="label-pick">` + ts.map(t =>
-          `<button type="button" class="lp${sel.has(t.id) ? ' on' : ''}" data-tag="${t.id}" style="--c:var(--l-${t.color})" aria-pressed="${sel.has(t.id)}"><i></i><span>${esc(tagLabel(t))}</span></button>`).join('') + `</div>` : '';
+        return ts.length ? `<div class="tg">${esc(g)}</div><div class="label-pick">` + ts.map(t => tagPick(t, sel)).join('') + `</div>` : '';
       }).join('');
-      $('.tp-body', inner).innerHTML = body || (ql ? `<p class="empty sm">No tag called “${esc(q.trim())}”. <button type="button" class="link" data-x="create">Create it</button></p>` : '<p class="empty sm">No tags yet.</p>');
+      $('.tp-body', inner).innerHTML = (mostUsedHTML + body) || (ql ? `<p class="empty sm">No tag called “${esc(q.trim())}”. <button type="button" class="link" data-x="create">Create it</button></p>` : '<p class="empty sm">No tags yet.</p>');
       $('.tp-count', inner).textContent = sel.size ? `${sel.size} selected` : '';
     };
     const createFromQuery = () => {
@@ -3740,6 +3849,19 @@ function openTagEditor(id, back) {
       done();
     });
   }, {cls: 'compact'});
+}
+
+/* ================= general notes (free text, not tied to a card) ================= */
+function openNotesSheet() {
+  openSheet((inner, close) => {
+    inner.innerHTML = `<h2 class="sheet-title sheet-drag">Notes</h2>`
+      + `<p class="sheet-text">Anything you want to jot down — not tied to a card.</p>`
+      + `<textarea id="gen-notes" class="field area" rows="10" placeholder="Start typing…" aria-label="General notes">${esc(state.notes)}</textarea>`
+      + `<div class="sheet-actions"><span class="grow"></span><button type="button" class="btn primary" data-x="done">Done</button></div>`;
+    autosize($('#gen-notes', inner));
+    inner.addEventListener('input', e => { if (e.target.id === 'gen-notes') { state.notes = e.target.value; autosize(e.target); save(); } });
+    inner.addEventListener('click', e => { if (e.target.closest('[data-x="done"]')) close(); });
+  }, {cls: 'tall'});
 }
 
 /* ================= calendar: due cards + events ================= */
@@ -4036,7 +4158,7 @@ function aiRun(name, a) {
       const c = aiBoard(a.board); if (!c) return {error: `No board called "${a.board}". Boards: ${state.categories.map(x => x.name).join(', ')}`};
       const l = aiList(c, a.list, true);
       const k = newCard(String(a.title || 'Untitled').slice(0, 300), {desc: String(a.description || ''), due: validDate(a.due_date) ? a.due_date : '', priority: Math.max(0, PRIO_NAMES.indexOf(norm(a.priority))), pinned: !!a.pinned,
-        tags: aiTags(a.tags), checklist: (a.checklist || []).map(t => ({id: uid(), text: String(t).slice(0, 200), done: false}))});
+        tags: aiTags(a.tags), checklist: (a.checklist || []).map(t => ({id: uid(), text: String(t).slice(0, 200), done: false, due: '', dueTime: '', note: ''}))});
       if (k.due && validTime(a.due_time)) k.dueTime = a.due_time;
       if (k.due && REPEAT_KEYS.includes(a.repeat)) k.repeat = a.repeat;
       l.cards.push(k);
@@ -4055,7 +4177,7 @@ function aiRun(name, a) {
       if (a.priority) k.priority = Math.max(0, PRIO_NAMES.indexOf(norm(a.priority)));
       if (a.add_tags) aiTags(a.add_tags).forEach(id => { if (!k.tags.includes(id)) k.tags.push(id); });
       if (a.remove_tags) { const rm = new Set(state.tags.filter(t => a.remove_tags.some(n => norm(n) === norm(t.name))).map(t => t.id)); k.tags = k.tags.filter(id => !rm.has(id)); }
-      if (a.add_checklist_items) a.add_checklist_items.forEach(t => k.checklist.push({id: uid(), text: String(t).slice(0, 200), done: false}));
+      if (a.add_checklist_items) a.add_checklist_items.forEach(t => k.checklist.push({id: uid(), text: String(t).slice(0, 200), done: false, due: '', dueTime: '', note: ''}));
       if (typeof a.pinned === 'boolean') k.pinned = a.pinned;
       if (typeof a.done === 'boolean' && a.done !== k.done) setDone(k, a.done);
       if (a.move_to_board || a.move_to_list) {
@@ -4433,7 +4555,9 @@ function openCopySheet(cardId, back) {
 }
 
 /* ================= card detail ================= */
+let openCardId = null;
 function openCard(id) {
+  openCardId = id;
   openSheet((inner, close) => {
     const back = () => openCard(id);
     const draw = () => {
@@ -4478,10 +4602,23 @@ function openCard(id) {
         + `<textarea id="cs-desc" class="field area" rows="3" placeholder="Details, links, measurements">${esc(k.desc)}</textarea></section>`
         + `<section class="cs-sec"><div class="cs-sec-head"><h3>Checklist</h3>${tot ? `<span class="mono muted">${doneN}/${tot}</span>` : ''}</div>`
         + (tot ? `<div class="progress" role="progressbar" aria-label="Checklist progress" aria-valuemin="0" aria-valuemax="${tot}" aria-valuenow="${doneN}"><i style="width:${doneN / tot * 100}%"></i></div>` : '')
-        + `<ul class="cl">` + k.checklist.map(it =>
-            `<li class="${it.done ? 'on' : ''}"><button type="button" class="cl-check${it.done ? ' on' : ''}" data-cs="cl-toggle" data-i="${it.id}" aria-pressed="${it.done}" aria-label="${it.done ? 'Uncheck' : 'Check'} item">${icon('check')}</button>`
-            + `<input class="cl-text" data-cl="${it.id}" value="${esc(it.text)}" aria-label="Checklist item" enterkeyhint="done" autocomplete="off">`
-            + `<button type="button" class="icon-btn sm" data-cs="cl-del" data-i="${it.id}" aria-label="Remove item">${icon('x')}</button></li>`).join('') + `</ul>`
+        + `<ul class="cl" data-card="${k.id}">` + k.checklist.map(it => {
+            const itDue = it.due ? dueInfo(it.due, it.done) : null;
+            const dueChip = itDue && itDue.text ? `<span class="chip ${itDue.cls}" title="Due date">${icon('cal')}${itDue.text}${it.dueTime ? ' ' + it.dueTime : ''}</span>` : '';
+            const noteChip = (it.note || '').trim() ? `<span class="chip" title="${esc(it.note)}">${icon('notes')}</span>` : '';
+            const open = ui.clOpen === it.id;
+            return `<li class="${it.done ? 'on' : ''}" data-cli="${it.id}">`
+              + `<button type="button" class="icon-btn sm cl-handle" data-cl-drag aria-label="Drag to reorder">${icon('sort')}</button>`
+              + `<button type="button" class="cl-check${it.done ? ' on' : ''}" data-cs="cl-toggle" data-i="${it.id}" aria-pressed="${it.done}" aria-label="${it.done ? 'Uncheck' : 'Check'} item">${icon('check')}</button>`
+              + `<input class="cl-text" data-cl="${it.id}" value="${esc(it.text)}" aria-label="Checklist item" enterkeyhint="done" autocomplete="off">`
+              + dueChip + noteChip
+              + `<button type="button" class="icon-btn sm${open ? ' on' : ''}" data-cs="cl-expand" data-i="${it.id}" aria-label="Due date and note" title="Due date and note">${icon('cal')}</button>`
+              + `<button type="button" class="icon-btn sm" data-cs="cl-del" data-i="${it.id}" aria-label="Remove item">${icon('x')}</button></li>`
+              + (open ? `<li class="cl-extra" data-extra="${it.id}">`
+                + `<span class="cl-extra-row"><input type="date" id="cl-ed-date" class="field sm" value="${esc(it.due)}" aria-label="Checklist item due date"><input type="time" id="cl-ed-time" class="field sm" value="${esc(it.dueTime)}"${it.due ? '' : ' disabled'} aria-label="Checklist item due time">`
+                + (it.due ? `<button type="button" class="link" data-cs="cl-due-clear" data-i="${it.id}">Clear date</button>` : '') + `</span>`
+                + `<textarea id="cl-ed-note" class="field area sm" rows="2" placeholder="Note" aria-label="Checklist item note">${esc(it.note)}</textarea></li>` : '');
+          }).join('') + `</ul>`
         + `<input id="cs-cl-add" class="field" placeholder="Add an item" enterkeyhint="enter" autocomplete="off" aria-label="Add checklist item"></section>`
         + `<footer class="cs-foot"><span class="mono muted">Added ${fmtDate(k.created, true)}</span><span class="grow"></span><button type="button" class="btn" data-cs="copy">${icon('copy')}Copy to…</button><button type="button" class="btn danger" data-cs="delete">${icon('trash')}Delete card</button></footer>`;
       if (wide.matches) {
@@ -4525,7 +4662,9 @@ function openCard(id) {
         case 'prio': k.priority = +b.dataset.p; haptic('select'); break;
         case 'copy': openCopySheet(id, back); return;
         case 'cl-toggle': { const it = k.checklist.find(i => i.id === b.dataset.i); if (it) { it.done = !it.done; haptic(it.done ? 'success' : 'select'); } break; }
-        case 'cl-del': k.checklist = k.checklist.filter(i => i.id !== b.dataset.i); break;
+        case 'cl-del': k.checklist = k.checklist.filter(i => i.id !== b.dataset.i); if (ui.clOpen === b.dataset.i) ui.clOpen = null; break;
+        case 'cl-expand': ui.clOpen = ui.clOpen === b.dataset.i ? null : b.dataset.i; haptic('select'); break;
+        case 'cl-due-clear': { const it = k.checklist.find(i => i.id === b.dataset.i); if (it) { it.due = ''; it.dueTime = ''; } break; }
         case 'delete': close(); withUndo('Card deleted', () => { const r = running(); if (r && r.cardId === k.id) stopTracking(); f.list.cards.splice(f.list.cards.indexOf(k), 1); }); return;
         default: return;
       }
@@ -4537,6 +4676,7 @@ function openCard(id) {
       if (t.id === 'cs-title') { k.title = t.value.replace(/\s*\n\s*/g, ' '); autosize(t); }
       else if (t.id === 'cs-desc') { k.desc = t.value; autosize(t); }
       else if (t.dataset.cl) { const it = k.checklist.find(i => i.id === t.dataset.cl); if (it) it.text = t.value; }
+      else if (t.id === 'cl-ed-note' && ui.clOpen) { const it = k.checklist.find(i => i.id === ui.clOpen); if (it) { it.note = t.value; autosize(t); } }
       else return;
       save(); scheduleRender();
     });
@@ -4544,6 +4684,12 @@ function openCard(id) {
       const t = e.target, f = findCard(id); if (!f) return;
       if (t.id === 'cs-due') { f.card.due = t.value; if (!t.value) { f.card.dueTime = ''; f.card.repeat = 'none'; } save(); scheduleRender(); draw(); }
       else if (t.id === 'cs-due-time') { f.card.dueTime = f.card.due ? t.value : ''; save(); scheduleRender(); draw(); }
+      else if ((t.id === 'cl-ed-date' || t.id === 'cl-ed-time') && ui.clOpen) {
+        const it = f.card.checklist.find(i => i.id === ui.clOpen); if (!it) return;
+        if (t.id === 'cl-ed-date') { it.due = t.value; if (!t.value) it.dueTime = ''; }
+        else it.dueTime = it.due ? t.value : '';
+        save(); scheduleRender(); draw();
+      }
       else if (t.id === 'cs-repeat') { f.card.repeat = f.card.due ? t.value : 'none'; haptic('select'); save(); scheduleRender(); draw(); }
       else if (t.id === 'cs-job') { if (t.value) f.card.jobId = t.value; else delete f.card.jobId; save(); draw(); }
       else if (t.id === 'cs-move') {
@@ -4563,7 +4709,8 @@ function openCard(id) {
         e.preventDefault();
         const v = t.value.trim(); if (!v) return;
         const f = findCard(id); if (!f) return;
-        f.card.checklist.push({id: uid(), text: v, done: false});
+        t.value = '';
+        f.card.checklist.push({id: uid(), text: v, done: false, due: '', dueTime: '', note: ''});
         save(); scheduleRender(); draw();
         const n = $('#cs-cl-add', inner); n.focus({preventScroll: true}); n.scrollIntoView({block: 'nearest'});
       }
@@ -4575,8 +4722,73 @@ function openCard(id) {
         f.card.checklist = f.card.checklist.filter(i => i.id !== t.dataset.cl);
         save(); scheduleRender(); setTimeout(() => { if (sheet && sheet.el.contains(inner)) draw(); });
       }
+      /* clicking away from "Add an item" commits it, same as pressing Enter */
+      if (t.id === 'cs-cl-add') {
+        const v = t.value.trim();
+        if (v) {
+          t.value = '';
+          f.card.checklist.push({id: uid(), text: v, done: false, due: '', dueTime: '', note: ''});
+          save(); scheduleRender(); setTimeout(() => { if (sheet && sheet.el.contains(inner)) draw(); });
+        }
+      }
     });
-  }, {cls: 'card-sheet'});
+  }, {cls: 'card-sheet', onClose: () => { if (openCardId === id) openCardId = null; ui.clOpen = null; }});
+}
+
+/* ================= checklist item drag (reorder, card editor) ================= */
+/* its own small long-press/threshold state machine (mirrors the board's pend/drag pattern) so it can
+   start inside a .sheet, which the board drag&drop deliberately ignores */
+let clPend = null, clDrag = null;
+document.addEventListener('pointerdown', e => {
+  if (clDrag || clPend) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  const handle = e.target.closest('[data-cl-drag]'); if (!handle) return;
+  const li = handle.closest('li[data-cli]'); if (!li) return;
+  clPend = {li, id: e.pointerId, y: e.clientY, touch: e.pointerType !== 'mouse'};
+  if (clPend.touch) clPend.timer = setTimeout(() => { if (clPend) clBeginDrag(); }, LONGPRESS_MS);
+});
+window.addEventListener('pointermove', e => {
+  if (clPend && e.pointerId === clPend.id && !clDrag) {
+    if (Math.abs(e.clientY - clPend.y) > (clPend.touch ? 10 : 6)) { if (clPend.touch) { clearTimeout(clPend.timer); clPend = null; } else clBeginDrag(); }
+    return;
+  }
+  if (clDrag && e.pointerId === clDrag.id) clUpdate(e.clientY);
+}, {passive: true});
+window.addEventListener('pointerup', e => {
+  if (clDrag && e.pointerId === clDrag.id) clEndDrag();
+  else if (clPend && e.pointerId === clPend.id) { clearTimeout(clPend.timer); clPend = null; }
+});
+window.addEventListener('pointercancel', e => {
+  if (clDrag && e.pointerId === clDrag.id) clEndDrag();
+  else if (clPend && e.pointerId === clPend.id) { clearTimeout(clPend.timer); clPend = null; }
+});
+document.addEventListener('touchmove', e => { if (clDrag) e.preventDefault(); }, {passive: false});
+function clBeginDrag() {
+  const p = clPend; clPend = null; clearTimeout(p.timer);
+  p.li.classList.add('cl-dragging');
+  clDrag = {li: p.li, id: p.id};
+  haptic('drag');
+}
+function clUpdate(y) {
+  const {li} = clDrag, ul = li.parentElement; if (!ul) return;
+  const items = $$('li[data-cli]', ul).filter(n => n !== li);
+  let before = null;
+  for (const n of items) { const r = n.getBoundingClientRect(); if (y < r.top + r.height / 2) { before = n; break; } }
+  if (before) { if (li.nextSibling !== before) ul.insertBefore(li, before); }
+  else if (ul.lastElementChild !== li) ul.appendChild(li);
+}
+function clEndDrag() {
+  const {li} = clDrag, ul = li.parentElement; clDrag = null;
+  li.classList.remove('cl-dragging');
+  if (ul) {
+    const cardId = ul.dataset.card, f = findCard(cardId);
+    if (f) {
+      const order = $$('li[data-cli]', ul).map(n => n.dataset.cli);
+      f.card.checklist.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+      save(); scheduleRender();
+    }
+  }
+  haptic('drop');
 }
 
 /* ================= toast ================= */
