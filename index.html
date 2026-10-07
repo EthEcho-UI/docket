@@ -85,6 +85,8 @@ button{-webkit-tap-highlight-color:transparent}
 .tab-dot{width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}
 .tab-count{font:500 11px/1 var(--font-mono);color:var(--muted);align-self:flex-start;margin-top:11px;font-variant-numeric:tabular-nums}
 .tab.is-pressing{background:var(--hover)}
+.tab.is-drop{background:var(--accent-soft);box-shadow:inset 0 0 0 2px var(--accent)}
+.tab.is-drop.is-charging{animation:pulse .5s ease-in-out infinite}
 .tab-add{flex:none;width:38px;height:38px;display:grid;place-items:center;border:0;border-radius:10px;background:none;color:var(--muted);cursor:pointer;margin-left:2px}
 .tab-add:hover{background:var(--hover);color:var(--ink)}
 .tab-work{gap:6px}
@@ -648,6 +650,7 @@ const DEFAULT_TAGS = [
   ['Area', 'Home', 'moss'], ['Area', 'Work', 'ultra'], ['Area', 'Personal', 'rose'], ['Area', 'Health', 'lime'], ['Area', 'Finance', 'mustard']
 ];
 const LONGPRESS_MS = 260;
+const BOARD_DROP_HOLD_MS = 550;
 const HAPTIC_MS = {light: 6, medium: 14, strong: 26};
 const PERIODS = [['week', 'This week'], ['lastweek', 'Last week'], ['month', 'This month'], ['lastmonth', 'Last month'], ['custom', 'Custom']];
 
@@ -2009,6 +2012,7 @@ function beginDrag() {
   document.body.appendChild(ghost);
   drag = {
     el, type: p.type, id: p.id, x: p.lx, y: p.ly, offX: p.x - r.left, offY: p.y - r.top, ghost, hover: null, raf: 0, overTrash: false, startedAt: performance.now(),
+    tabHover: null, tabTimer: 0,
     flipSel: p.type === 'card' ? '#board .card' : p.type === 'list' ? '#board > .list, #board > .add-list' : '#tabs > .tab[data-cat], #tabs > .tab-add'
   };
   el.classList.add('is-placeholder');
@@ -2080,13 +2084,80 @@ function updateTrash() {
     trashEl.classList.toggle('is-near', distFromBottom < zone);
     trashEl.classList.toggle('danger-hot', drag.overTrash);
   } else {
-    trashEl.style.transform = ''; trashEl.style.opacity = '0'; trashEl.classList.remove('is-near', 'danger-hot'); drag.overTrash = false;
+    hideTrash();
   }
+}
+function hideTrash() {
+  trashEl.style.transform = ''; trashEl.style.opacity = '0'; trashEl.classList.remove('is-near', 'danger-hot'); if (drag) drag.overTrash = false;
+}
+
+/* drag a card over a DIFFERENT board's tab and hold it there to move the card onto that board
+   (into its first non-Done list), mirroring the trash cue's "hold to confirm" feel but on the
+   tab itself rather than a floating target; a plain pass-through doesn't trigger it */
+function tabCatAt(x, y) {
+  const under = document.elementFromPoint(x, y);
+  const el = under && under.closest('#tabs .tab[data-cat]');
+  if (!el || el.dataset.cat === state.active) return null;
+  return el;
+}
+function setTabHover(tabEl) {
+  if (drag.tabHover === tabEl) return;
+  if (drag.tabHover) { drag.tabHover.classList.remove('is-drop', 'is-charging'); clearTimeout(drag.tabTimer); drag.tabTimer = 0; }
+  drag.tabHover = tabEl;
+  if (tabEl) {
+    tabEl.classList.add('is-drop', 'is-charging');
+    const cardEl = drag.el, catId = tabEl.dataset.cat;
+    drag.tabTimer = setTimeout(() => dropCardOnBoard(cardEl, catId), BOARD_DROP_HOLD_MS);
+  }
+}
+/* same "first real list" rule the rest of the app uses for a board's default destination
+   (whatever doneListOf() would skip over), so this doesn't invent a new convention */
+function firstNonDoneList(c) {
+  if (!c.lists.length) return null;
+  return c.lists.find(l => l !== doneListOf(c)) || c.lists[0];
+}
+/* moves a card into another board's first non-Done list; used by the tab-hold drag below and
+   exposed read/write via window.docketDebug so the state-level move is testable without a real
+   pointer drag (jsdom has no layout/elementFromPoint; see tests/smoke20.js) */
+function moveCardToCategory(card, fromList, destCat) {
+  const destList = firstNonDoneList(destCat);
+  if (!destList) return null;
+  fromList.cards.splice(fromList.cards.indexOf(card), 1);
+  destList.cards.push(card);
+  if (destList.collapsed) destList.collapsed = false;
+  return destList;
+}
+function dropCardOnBoard(cardEl, catId) {
+  if (!drag || drag.el !== cardEl || !drag.tabHover || drag.tabHover.dataset.cat !== catId) return;
+  const destCat = state.categories.find(c => c.id === catId);
+  const f = findCard(cardEl.dataset.card);
+  const d = drag; drag = null;
+  cancelAnimationFrame(d.raf);
+  clearTimeout(d.tabTimer);
+  suppressUntil = performance.now() + 400;
+  if (d.hover) d.hover.classList.remove('is-drop');
+  d.tabHover.classList.remove('is-drop', 'is-charging');
+  document.documentElement.classList.remove('dragging');
+  hideTrash();
+  d.el.classList.remove('is-placeholder');
+  d.ghost.style.transition = 'transform .18s ease, opacity .18s ease';
+  d.ghost.style.opacity = '0';
+  setTimeout(() => d.ghost.remove(), 180);
+  settling = false;
+  if (!f || !destCat) { render(); return; }
+  const destList = moveCardToCategory(f.card, f.list, destCat);
+  if (!destList) { render(); return; }
+  haptic('success');
+  commit();
+  toast(`Moved to ${destCat.name}`, {action: 'Open', onAction: () => { state.active = destCat.id; commit(); }});
 }
 
 function updateTarget() {
   const {type, x, y, el} = drag;
   if (type === 'card') {
+    const tabEl = tabCatAt(x, y);
+    setTabHover(tabEl);
+    if (tabEl) { setHover(null); hideTrash(); return; }
     updateTrash();
     if (drag.overTrash) { setHover(null); return; }
     const list = listAt(x, y);
@@ -2178,6 +2249,8 @@ function commitDrop(d) {
 function endDrag() {
   const d = drag; drag = null;
   cancelAnimationFrame(d.raf);
+  clearTimeout(d.tabTimer);
+  if (d.tabHover) d.tabHover.classList.remove('is-drop', 'is-charging');
   suppressUntil = performance.now() + 400;
   if (d.hover) d.hover.classList.remove('is-drop');
   document.documentElement.classList.remove('dragging');
@@ -4865,7 +4938,19 @@ render();
 try { if (localStorage.getItem('docket.notify') === null) devNotify(!!state.settings.notify); } catch (e) {}
 scheduleLocal();
 /* read-only hook for diagnostics and automated checks */
-window.docketDebug = {reminderItems: () => reminderItems(), health: () => notifHealth()};
+window.docketDebug = {
+  reminderItems: () => reminderItems(), health: () => notifHealth(),
+  /* test-only: drives the exact cross-board move the tab-hold drag performs, without a real
+     pointer drag (used by tests/smoke20.js; jsdom can't simulate elementFromPoint/hold timing) */
+  moveCardToCategory: (cardId, catId) => {
+    const f = findCard(cardId), destCat = state.categories.find(c => c.id === catId);
+    if (!f || !destCat) return null;
+    const destList = moveCardToCategory(f.card, f.list, destCat);
+    if (!destList) return null;
+    save(); render();
+    return destList.id;
+  }
+};
 const activeTab = tabsEl.querySelector('.tab.is-active'); if (activeTab) activeTab.scrollIntoView({inline: 'nearest', block: 'nearest'});
 if (pr().endsAt) tick();
 fsInit();
