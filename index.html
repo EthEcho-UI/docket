@@ -87,6 +87,7 @@ button{-webkit-tap-highlight-color:transparent}
 .tab.is-pressing{background:var(--hover)}
 .tab.is-drop{background:var(--accent-soft);box-shadow:inset 0 0 0 2px var(--accent)}
 .tab.is-drop.is-charging{animation:pulse .5s ease-in-out infinite}
+.tab.is-drop.is-armed{background:var(--accent);color:#fff;animation:none;box-shadow:inset 0 0 0 2px var(--accent)}
 .tab-add{flex:none;width:38px;height:38px;display:grid;place-items:center;border:0;border-radius:10px;background:none;color:var(--muted);cursor:pointer;margin-left:2px}
 .tab-add:hover{background:var(--hover);color:var(--ink)}
 .tab-work{gap:6px}
@@ -2015,7 +2016,7 @@ function beginDrag() {
   document.body.appendChild(ghost);
   drag = {
     el, type: p.type, id: p.id, x: p.lx, y: p.ly, offX: p.x - r.left, offY: p.y - r.top, ghost, hover: null, raf: 0, overTrash: false, startedAt: performance.now(),
-    tabHover: null, tabTimer: 0,
+    tabHover: null, tabTimer: 0, tabArmed: null,
     flipSel: p.type === 'card' ? '#board .card' : p.type === 'list' ? '#board > .list, #board > .add-list' : '#tabs > .tab[data-cat], #tabs > .tab-add'
   };
   el.classList.add('is-placeholder');
@@ -2094,9 +2095,12 @@ function hideTrash() {
   trashEl.style.transform = ''; trashEl.style.opacity = '0'; trashEl.classList.remove('is-near', 'danger-hot'); if (drag) drag.overTrash = false;
 }
 
-/* drag a card over a DIFFERENT board's tab and hold it there to move the card onto that board
-   (into its first non-Done list), mirroring the trash cue's "hold to confirm" feel but on the
-   tab itself rather than a floating target; a plain pass-through doesn't trigger it */
+/* drag a card over a DIFFERENT board's tab and hold it there to ARM a move onto that board
+   (into its first non-Done list): holding past BOARD_DROP_HOLD_MS vibrates and switches the
+   tab from a pulsing "charging" look to a solid "armed" one, but the move itself only happens
+   when the card is actually released (see endDrag) - holding doesn't auto-drop after the
+   timer, it just confirms the tab is primed. Moving off the tab disarms it. A plain
+   pass-through (never reaching the timer) doesn't trigger anything. */
 function tabCatAt(x, y) {
   const under = document.elementFromPoint(x, y);
   const el = under && under.closest('#tabs .tab[data-cat]');
@@ -2105,12 +2109,18 @@ function tabCatAt(x, y) {
 }
 function setTabHover(tabEl) {
   if (drag.tabHover === tabEl) return;
-  if (drag.tabHover) { drag.tabHover.classList.remove('is-drop', 'is-charging'); clearTimeout(drag.tabTimer); drag.tabTimer = 0; }
+  if (drag.tabHover) { drag.tabHover.classList.remove('is-drop', 'is-charging', 'is-armed'); clearTimeout(drag.tabTimer); drag.tabTimer = 0; drag.tabArmed = null; }
   drag.tabHover = tabEl;
   if (tabEl) {
     tabEl.classList.add('is-drop', 'is-charging');
-    const cardEl = drag.el, catId = tabEl.dataset.cat;
-    drag.tabTimer = setTimeout(() => dropCardOnBoard(cardEl, catId), BOARD_DROP_HOLD_MS);
+    const catId = tabEl.dataset.cat;
+    drag.tabTimer = setTimeout(() => {
+      if (!drag || drag.tabHover !== tabEl) return;
+      drag.tabArmed = catId;
+      tabEl.classList.remove('is-charging');
+      tabEl.classList.add('is-armed');
+      haptic('warn');
+    }, BOARD_DROP_HOLD_MS);
   }
 }
 /* same "first real list" rule the rest of the app uses for a board's default destination
@@ -2130,17 +2140,11 @@ function moveCardToCategory(card, fromList, destCat) {
   if (destList.collapsed) destList.collapsed = false;
   return destList;
 }
-function dropCardOnBoard(cardEl, catId) {
-  if (!drag || drag.el !== cardEl || !drag.tabHover || drag.tabHover.dataset.cat !== catId) return;
-  const destCat = state.categories.find(c => c.id === catId);
-  const f = findCard(cardEl.dataset.card);
-  const d = drag; drag = null;
-  cancelAnimationFrame(d.raf);
-  clearTimeout(d.tabTimer);
-  suppressUntil = performance.now() + 400;
-  if (d.hover) d.hover.classList.remove('is-drop');
-  d.tabHover.classList.remove('is-drop', 'is-charging');
-  document.documentElement.classList.remove('dragging');
+/* called from endDrag() once a tab-hold has armed - d is the already-detached drag record
+   (drag itself is already null by the time endDrag reaches this) */
+function finishBoardMove(d) {
+  const destCat = state.categories.find(c => c.id === d.tabArmed);
+  const f = findCard(d.el.dataset.card);
   hideTrash();
   d.el.classList.remove('is-placeholder');
   d.ghost.style.transition = 'transform .18s ease, opacity .18s ease';
@@ -2253,11 +2257,12 @@ function endDrag() {
   const d = drag; drag = null;
   cancelAnimationFrame(d.raf);
   clearTimeout(d.tabTimer);
-  if (d.tabHover) d.tabHover.classList.remove('is-drop', 'is-charging');
+  if (d.tabHover) d.tabHover.classList.remove('is-drop', 'is-charging', 'is-armed');
   suppressUntil = performance.now() + 400;
   if (d.hover) d.hover.classList.remove('is-drop');
   document.documentElement.classList.remove('dragging');
   trashEl.style.transform = ''; trashEl.style.opacity = '0'; trashEl.classList.remove('is-near', 'danger-hot');
+  if (d.type === 'card' && d.tabArmed) { finishBoardMove(d); return; }
   if (d.type === 'card' && d.overTrash) {
     const f = findCard(d.el.dataset.card);
     d.ghost.style.transition = 'transform .18s ease, opacity .18s ease';
