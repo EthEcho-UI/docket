@@ -1,5 +1,5 @@
 /* Docket service worker: offline app shell, cached fonts/libraries, push reminders */
-const VERSION = 'docket-v4';
+const VERSION = 'docket-v5';
 const RUNTIME = 'docket-runtime';
 const PUSH_SERVER = 'https://docket-push.ethecho-ui.workers.dev';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/favicon-32.png', './icons/badge-96.png'];
@@ -28,9 +28,11 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  /* the page itself: network first so updates arrive, cached copy when offline */
+  /* the page itself: network first so updates arrive, cached copy when offline.
+     cache:'no-store' bypasses the browser's own HTTP cache (not just Cache Storage) so a page
+     reload can never silently keep serving an old build within GitHub Pages' cache-control window */
   if (req.mode === 'navigate') {
-    e.respondWith(fetch(req).then(res => {
+    e.respondWith(fetch(req, {cache: 'no-store'}).then(res => {
       if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put('./index.html', copy)); }
       return res;
     }).catch(() => caches.match('./index.html')));

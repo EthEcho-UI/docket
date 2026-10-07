@@ -322,9 +322,19 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 .cl li .chip{flex:none;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cl-extra{display:flex;flex-direction:column;gap:8px;min-height:0!important;padding:4px 6px 12px 36px;margin-top:-4px}
 .cl-extra-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cl-sub-sec{margin-top:2px}
+.cl-sub-sec>.lbl-sm{display:block;font:600 11px/1 var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.cl-sub{list-style:none;margin:0 0 6px;padding:0}
+.cl-sub li{display:flex;align-items:center;gap:4px;min-height:36px}
+.cl-sub li.on .cl-text{color:var(--muted);text-decoration:line-through}
 .field.sm{padding:7px 10px;font-size:14px;min-height:0}
+.note-list{display:flex;flex-direction:column;gap:10px;margin-bottom:4px}
+.note-item{display:flex;align-items:flex-start;gap:6px}
+.note-item .field{flex:1}
+.note-item .icon-btn{margin-top:4px}
 .cs-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:12px;border-top:1px solid var(--line)}
-.trash-drop{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:58px;height:58px;border-radius:50%;background:var(--danger);color:#fff;display:flex;align-items:center;justify-content:center;z-index:60;pointer-events:none;box-shadow:var(--shadow-lift);transition:transform .12s ease}
+.trash-drop{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) scale(.8);width:58px;height:58px;border-radius:50%;background:var(--danger);color:#fff;display:flex;align-items:center;justify-content:center;z-index:60;pointer-events:none;box-shadow:var(--shadow-lift);opacity:0;transition:transform .15s ease,opacity .15s ease}
+.trash-drop.is-near{transform:translateX(-50%) scale(1)}
 .trash-drop .ic{width:26px;height:26px}
 .trash-drop.danger-hot{transform:translateX(-50%) scale(1.14)}
 .ghost.to-trash{transition:transform .18s ease,opacity .18s ease!important}
@@ -618,7 +628,7 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
   <main class="board" id="board" aria-label="Lists"></main>
 </div>
 <div class="dock" id="dock" hidden></div>
-<div class="trash-drop" id="trash-drop" hidden aria-hidden="true"></div>
+<div class="trash-drop" id="trash-drop" aria-hidden="true"></div>
 <button type="button" class="ai-fab" id="ai-fab" data-action="assistant" aria-label="AI assistant" title="AI assistant (A)"></button>
 <div id="layer"></div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
@@ -958,7 +968,7 @@ function orderedCards(l, list) {
     || idx.get(a.id) - idx.get(b.id));
 }
 /* deep copy with fresh ids (cards keep their content; time entries stay with the original) */
-const cloneCard = k => ({...JSON.parse(JSON.stringify(k)), id: uid(), created: Date.now(), checklist: k.checklist.map(i => ({...i, id: uid()})), fromList: undefined});
+const cloneCard = k => ({...JSON.parse(JSON.stringify(k)), id: uid(), created: Date.now(), checklist: k.checklist.map(i => ({...i, id: uid(), sub: (i.sub || []).map(s => ({...s, id: uid()}))})), fromList: undefined});
 const cloneList = l => ({...l, id: uid(), isDone: false, cards: l.cards.map(cloneCard)});
 const newList = (title, extra = {}) => Object.assign({id: uid(), title, collapsed: false, cards: []}, extra);
 const newCategory = (name, color) => ({id: uid(), name, color, labels: {}, lists: [newList('To do'), newList('Doing'), newList('Done')]});
@@ -1038,7 +1048,9 @@ function normalize(s) {
   s.pomo = Object.assign({...POMO_DEFAULTS}, s.pomo || {});
   s.pomoRun = Object.assign({...POMO_IDLE}, s.pomoRun || {});
   s.savedAt = Number(s.savedAt) || 0;
-  s.notes = typeof s.notes === 'string' ? s.notes : '';
+  /* general notes: used to be one plain string (state.notes); now a list, newest first. a non-empty old string becomes the one note */
+  if (typeof s.notes === 'string') s.notes = s.notes.trim() ? [{id: uid(), text: s.notes, created: Date.now()}] : [];
+  s.notes = Array.isArray(s.notes) ? s.notes.filter(n => n && n.id).map(n => ({id: n.id, text: String(n.text || ''), created: Number(n.created) || Date.now()})) : [];
   /* secret key shared by all of the user's devices (via sync) so reminders reach every device */
   if (typeof s.pushGroup !== 'string' || !/^[A-Za-z0-9_-]{22,100}$/.test(s.pushGroup)) delete s.pushGroup;
   s.wtasks = Array.isArray(s.wtasks) ? s.wtasks.filter(w => w && jobIds.has(w.jobId)).map(w => ({id: w.id || uid(), jobId: w.jobId, title: String(w.title || ''), cardId: w.cardId || null, created: Number(w.created) || Date.now()})) : [];
@@ -1062,6 +1074,7 @@ function normalize(s) {
     c.lists = Array.isArray(c.lists) ? c.lists : [];
     c.lists.forEach(l => {
       l.id = l.id || uid(); l.title = String(l.title || 'Untitled'); l.collapsed = !!l.collapsed; l.isDone = !!l.isDone; l.sort = ['manual', 'priority', 'due'].includes(l.sort) ? l.sort : 'manual';
+      l.hideDone = l.hideDone === true || l.hideDone === false ? l.hideDone : null;
       l.cards = Array.isArray(l.cards) ? l.cards : [];
       l.cards.forEach(k => {
         k.id = k.id || uid(); k.title = String(k.title || 'Untitled'); k.desc = String(k.desc || '');
@@ -1075,7 +1088,8 @@ function normalize(s) {
         }
         k.checklist = Array.isArray(k.checklist) ? k.checklist.map(i => {
           const due = /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '';
-          return {id: i.id || uid(), text: String(i.text || ''), done: !!i.done, due, dueTime: /^\d{2}:\d{2}$/.test(i.dueTime || '') && due ? i.dueTime : '', note: String(i.note || '')};
+          const sub = Array.isArray(i.sub) ? i.sub.filter(x => x && x.id).map(x => ({id: x.id, text: String(x.text || ''), done: !!x.done})) : [];
+          return {id: i.id || uid(), text: String(i.text || ''), done: !!i.done, due, dueTime: /^\d{2}:\d{2}$/.test(i.dueTime || '') && due ? i.dueTime : '', note: String(i.note || ''), sub};
         }) : [];
         k.created = k.created || Date.now();
         if (k.jobId && k.jobId !== '__none' && !jobIds.has(k.jobId)) delete k.jobId;
@@ -1579,7 +1593,7 @@ function listHTML(c, l, r) {
       + `${icon('expand')}<span class="list-count">${open}</span><span class="v-title">${esc(l.title)}</span></button>`
       + `<div class="cards" data-cards></div></section>`;
   }
-  const hideThis = state.settings.hideDone || doneModeOf(c) === 'hide';
+  const hideThis = hideDoneOf(c, l);
   const visible = orderedCards(l, hideThis ? l.cards.filter(k => !k.done) : l.cards);
   const hidden = l.cards.length - visible.length;
   const title = ui.renamingList === l.id
@@ -1591,7 +1605,7 @@ function listHTML(c, l, r) {
       + `<div class="composer-row"><button type="button" class="btn primary" data-action="composer-add">Add card</button>`
       + `<button type="button" class="icon-btn" data-action="composer-close" aria-label="Stop adding cards">${icon('x')}</button></div></div>`
     : `<footer class="list-foot"><button type="button" class="add-card" data-action="add-card">${icon('plus')}<span>Add card</span></button>`
-      + (hidden && state.settings.hideDone ? `<button type="button" class="hidden-note" data-action="show-done">${hidden} done hidden</button>` : '') + `</footer>`;
+      + (hidden && hideThis ? `<button type="button" class="hidden-note" data-action="show-done" data-list="${l.id}">${hidden} done hidden</button>` : '') + `</footer>`;
   return `<section class="list" data-list="${l.id}">`
     + `<header class="list-head" data-drag="list">${title}<span class="list-count" title="Open cards">${l.sort !== 'manual' ? `<span class="sort-ic" title="Sorted by ${l.sort === 'due' ? 'due date' : 'priority'}">${icon(l.sort === 'due' ? 'cal' : 'flag')}</span>` : ''}${open}</span>`
     + `<button type="button" class="icon-btn" data-action="collapse" aria-label="Collapse ${esc(l.title)}">${icon('collapse')}</button>`
@@ -1714,6 +1728,8 @@ const DONE_NAME = /^(done|hotovo|dokon[čc]eno|completed|finished)$/i;
 const doneListOf = c => c.lists.find(l => l.isDone) || c.lists.find(l => DONE_NAME.test(l.title.trim()));
 /* a board's own placement rule for finished cards, or the global setting if it hasn't set one */
 const doneModeOf = c => c.doneMode || (state.settings.autoMoveDone ? 'move' : 'leave');
+/* whether a list hides its own finished cards: list setting wins if set, else the board's done mode, else the global setting */
+const hideDoneOf = (c, l) => l.hideDone != null ? l.hideDone : (doneModeOf(c) === 'hide' || state.settings.hideDone);
 /* returns a short message about where the card went, or '' */
 function moveForDone(card, done) {
   const f = findCard(card.id); if (!f) return '';
@@ -1734,11 +1750,7 @@ function moveForDone(card, done) {
     l.cards.splice(f.index, 1); delete card.fromList; back.cards.unshift(card);
     return `Moved back to ${back.title}`;
   }
-  if (mode === 'leave' && done) {
-    const idx = l.cards.indexOf(card);
-    if (idx > -1 && idx !== l.cards.length - 1) { l.cards.splice(idx, 1); l.cards.push(card); }
-  }
-  /* 'hide' (and 'leave') otherwise just stay where they are; rendering hides them for 'hide' */
+  /* 'leave' and 'hide' never reposition the card; 'hide' only hides it at render time */
   return '';
 }
 /* a repeating card that gets finished leaves a fresh copy in its place with the next due date */
@@ -1750,7 +1762,7 @@ function spawnNext(card) {
   const f = findCard(card.id); if (!next || !f) return '';
   const cp = cloneCard(card);
   Object.assign(cp, {done: false, due: next, repeat: card.repeat}); delete cp.fromList; delete cp.spawned; delete cp.repeatWas;
-  cp.checklist.forEach(i => { i.done = false; });
+  cp.checklist.forEach(i => { i.done = false; (i.sub || []).forEach(s => { s.done = false; }); });
   f.list.cards.splice(f.index, 0, cp);
   card.spawned = cp.id; card.repeatWas = card.repeat; card.repeat = 'none';
   const t = dueInfo(next, false).text || fmtDate(parseISO(next));
@@ -1821,7 +1833,7 @@ document.addEventListener('click', e => {
       const f = findCard(a.closest('.card').dataset.card); if (!f) break;
       const card = f.card, moved = setDone(card, !card.done);
       commit();
-      if (card.done && (moved || state.settings.hideDone)) {
+      if (card.done && (moved || hideDoneOf(f.cat, f.list))) {
         toast(moved || 'Marked done and hidden', {action: 'Undo', onAction: () => { setDone(card, false); commit(); }});
       } else if (moved) toast(moved);
       break;
@@ -1833,7 +1845,7 @@ document.addEventListener('click', e => {
     case 'add-card': startComposer(lid); break;
     case 'composer-add': addFromComposer(); break;
     case 'composer-close': ui.composer = null; renderBoard(); break;
-    case 'show-done': state.settings.hideDone = false; commit(); toast('Showing completed cards'); break;
+    case 'show-done': { const f = findList(a.dataset.list); if (f) f.list.hideDone = false; commit(); toast('Showing completed cards in this list'); break; }
     case 'addlist-open':
       ui.addingList = true; ui.addListText = ''; ui.focus = 'addlist-input'; renderBoard();
       boardEl.scrollLeft = boardEl.scrollWidth;
@@ -1875,8 +1887,7 @@ document.addEventListener('keydown', e => {
     if (e.key === 'c' || e.key === 'C') {
       const focusedCard = t.closest && t.closest('.card[data-card]');
       const cid = (focusedCard && focusedCard.dataset.card) || openCardId;
-      const f = cid && findCard(cid);
-      if (f) { clipboardCard = JSON.parse(JSON.stringify(f.card)); toast(`Copied “${f.card.title}”`); e.preventDefault(); }
+      if (cid && copyCardToClipboard(cid)) e.preventDefault();
       return;
     }
     if ((e.key === 'v' || e.key === 'V') && clipboardCard) {
@@ -1886,13 +1897,7 @@ document.addEventListener('keydown', e => {
       else if (openCardId) { const f = findCard(openCardId); if (f) targetListId = f.list.id; }
       else { const focusedList = t.closest && t.closest('.list[data-list]'); if (focusedList) targetListId = focusedList.dataset.list; }
       if (!targetListId) { const l = currentCat().lists.find(x => !x.collapsed) || currentCat().lists[0]; if (l) targetListId = l.id; }
-      const to = targetListId && findList(targetListId);
-      if (to) {
-        const cp = cloneCard(clipboardCard); cp.done = false; delete cp.fromList;
-        to.list.cards.push(cp);
-        haptic('success'); commit(); toast(`Pasted “${cp.title}” into ${to.list.title}`);
-        e.preventDefault();
-      }
+      if (targetListId && pasteClipboardInto(targetListId)) e.preventDefault();
       return;
     }
   }
@@ -1939,8 +1944,25 @@ boardEl.addEventListener('wheel', e => {
 
 /* ================= drag & drop (pointer events, touch long-press) ================= */
 let pend = null, drag = null, settling = false;
-/* desktop Ctrl+C/Ctrl+V clipboard (one card, in memory only) */
+/* one shared clipboard (one card, in memory only) used by desktop Ctrl+C/Ctrl+V and the phone's
+   Copy/Paste menu actions, so both paths behave identically */
 let clipboardCard = null;
+function copyCardToClipboard(cardId) {
+  const f = findCard(cardId); if (!f) return false;
+  clipboardCard = JSON.parse(JSON.stringify(f.card));
+  haptic('select'); toast(`Copied “${f.card.title}”`);
+  return true;
+}
+function pasteClipboardInto(listId) {
+  if (!clipboardCard) return false;
+  const to = findList(listId); if (!to) return false;
+  const cp = cloneCard(clipboardCard); cp.done = false; delete cp.fromList;
+  to.list.cards.push(cp);
+  if (to.list.collapsed) to.list.collapsed = false;
+  haptic('success'); commit();
+  toast(`Pasted “${cp.title}” into ${to.list.title}`);
+  return true;
+}
 
 document.addEventListener('pointerdown', e => {
   if (drag || pend || settling) return;
@@ -2052,16 +2074,18 @@ function placeInto(cont, before) {
 
 /* drag a card toward the bottom of the screen to drop it on the trash; fades in and reddens as it gets closer */
 function updateTrash() {
-  const zone = 130, distFromBottom = innerHeight - drag.y;
-  if (distFromBottom < zone) {
-    trashEl.hidden = false;
-    const near = Math.max(0, Math.min(1, 1 - distFromBottom / zone));
+  /* fades/grows in continuously as the pointer nears the bottom of the screen, over a wider
+     approach zone (220px) than the final drop zone (54px), so it visibly eases in rather than popping */
+  const approach = 220, zone = 130, distFromBottom = innerHeight - drag.y;
+  if (distFromBottom < approach) {
+    const near = Math.max(0, Math.min(1, 1 - distFromBottom / approach));
     const held = Math.min(1, (performance.now() - drag.startedAt) / 1500) * 0.15;
-    trashEl.style.opacity = Math.min(1, 0.3 + near * 0.6 + held).toFixed(2);
+    trashEl.style.opacity = Math.min(1, 0.15 + near * 0.75 + held).toFixed(2);
+    trashEl.classList.toggle('is-near', distFromBottom < zone);
     drag.overTrash = distFromBottom < 54;
     trashEl.classList.toggle('danger-hot', drag.overTrash);
   } else {
-    trashEl.hidden = true; trashEl.style.opacity = '0'; drag.overTrash = false; trashEl.classList.remove('danger-hot');
+    trashEl.style.opacity = '0'; trashEl.classList.remove('is-near', 'danger-hot'); drag.overTrash = false;
   }
 }
 
@@ -2162,7 +2186,7 @@ function endDrag() {
   suppressUntil = performance.now() + 400;
   if (d.hover) d.hover.classList.remove('is-drop');
   document.documentElement.classList.remove('dragging');
-  trashEl.hidden = true; trashEl.style.opacity = '0'; trashEl.classList.remove('danger-hot');
+  trashEl.style.opacity = '0'; trashEl.classList.remove('is-near', 'danger-hot');
   if (d.type === 'card' && d.overTrash) {
     const f = findCard(d.el.dataset.card);
     d.ghost.style.transition = 'transform .18s ease, opacity .18s ease';
@@ -2384,7 +2408,7 @@ function categoryMenu(anchor) {
       {type: 'title', label: `Finished cards in ${c.name}`},
       {label: 'Use the global default', hint: state.settings.autoMoveDone ? 'Move to Done' : 'Leave in place', checked: !c.doneMode, onSelect: () => { delete c.doneMode; commit(); }},
       {label: 'Move to the Done column', checked: c.doneMode === 'move', onSelect: () => { c.doneMode = 'move'; commit(); }},
-      {label: 'Leave at the bottom of the list', checked: c.doneMode === 'leave', onSelect: () => { c.doneMode = 'leave'; commit(); }},
+      {label: 'Leave it exactly where it is', checked: c.doneMode === 'leave', onSelect: () => { c.doneMode = 'leave'; commit(); }},
       {label: 'Hide', checked: c.doneMode === 'hide', onSelect: () => { c.doneMode = 'hide'; commit(); }}
     ])},
     {label: 'Move left', icon: 'arrowL', disabled: i === 0, onSelect: () => { moveItem(state.categories, i, i - 1); commit(); }},
@@ -2403,9 +2427,16 @@ function listMenu(anchor, lid) {
   openMenu(anchor, [
     {type: 'title', label: l.title},
     {label: 'Add card', icon: 'plus', onSelect: () => startComposer(lid)},
+    {label: 'Paste card', hint: clipboardCard ? `“${clipboardCard.title}”` : 'Nothing copied yet', icon: 'download', disabled: !clipboardCard, onSelect: () => pasteClipboardInto(lid)},
     {label: 'Rename', icon: 'pencil', onSelect: () => startRename(lid)},
     {label: 'Collapse', icon: 'collapse', onSelect: () => { l.collapsed = true; commit(); }},
     {label: 'Done column', hint: doneListOf(c) === l ? 'Finished cards go here' : 'Send finished cards here', icon: 'doneAll', checked: doneListOf(c) === l, onSelect: () => { const was = doneListOf(c) === l && l.isDone; c.lists.forEach(x => { x.isDone = false; }); if (!was) l.isDone = true; commit(); toast(was ? 'Done column follows the name again' : `Finished cards now go to ${l.title}`); }},
+    {label: 'Hide completed cards', hint: l.hideDone == null ? `Follows board/global (${hideDoneOf(c, l) ? 'hidden' : 'shown'})` : (l.hideDone ? 'Hidden in this list' : 'Shown in this list'), icon: 'doneAll', onSelect: () => openMenu(anchor, [
+      {type: 'title', label: `Completed cards in “${l.title}”`},
+      {label: 'Use the board/global default', hint: doneModeOf(c) === 'hide' || state.settings.hideDone ? 'Hidden' : 'Shown', checked: l.hideDone == null, onSelect: () => { l.hideDone = null; commit(); }},
+      {label: 'Always hide in this list', checked: l.hideDone === true, onSelect: () => { l.hideDone = true; commit(); }},
+      {label: 'Always show in this list', checked: l.hideDone === false, onSelect: () => { l.hideDone = false; commit(); }}
+    ])},
     {label: 'Move left', icon: 'arrowL', disabled: i === 0, onSelect: () => { moveItem(c.lists, i, i - 1); commit(); }},
     {label: 'Move right', icon: 'arrowR', disabled: i === c.lists.length - 1, onSelect: () => { moveItem(c.lists, i, i + 1); commit(); }},
     {label: 'Sort cards', hint: {manual: 'Manually (drag)', priority: 'By priority', due: 'By due date'}[l.sort], icon: 'sort', onSelect: () => openMenu(anchor, [
@@ -3851,16 +3882,44 @@ function openTagEditor(id, back) {
   }, {cls: 'compact'});
 }
 
-/* ================= general notes (free text, not tied to a card) ================= */
+/* ================= general notes (a list of free-text notes, not tied to a card) ================= */
 function openNotesSheet() {
   openSheet((inner, close) => {
-    inner.innerHTML = `<h2 class="sheet-title sheet-drag">Notes</h2>`
-      + `<p class="sheet-text">Anything you want to jot down — not tied to a card.</p>`
-      + `<textarea id="gen-notes" class="field area" rows="10" placeholder="Start typing…" aria-label="General notes">${esc(state.notes)}</textarea>`
-      + `<div class="sheet-actions"><span class="grow"></span><button type="button" class="btn primary" data-x="done">Done</button></div>`;
-    autosize($('#gen-notes', inner));
-    inner.addEventListener('input', e => { if (e.target.id === 'gen-notes') { state.notes = e.target.value; autosize(e.target); save(); } });
-    inner.addEventListener('click', e => { if (e.target.closest('[data-x="done"]')) close(); });
+    const draw = () => {
+      const st = inner.scrollTop;
+      inner.innerHTML = `<h2 class="sheet-title sheet-drag">Notes</h2>`
+        + `<p class="sheet-text">Anything you want to jot down — not tied to a card.</p>`
+        + `<div class="note-list">` + state.notes.map(n => `<div class="note-item" data-note="${n.id}">`
+          + `<textarea class="field area sm" data-note-text="${n.id}" rows="2" placeholder="Start typing…" aria-label="Note">${esc(n.text)}</textarea>`
+          + `<button type="button" class="icon-btn sm" data-x="del-note" data-note="${n.id}" aria-label="Delete note">${icon('x')}</button></div>`).join('')
+        + `</div>` + (state.notes.length ? '' : `<p class="empty sm">No notes yet.</p>`)
+        + `<div class="sheet-actions"><button type="button" class="btn" data-x="add-note">${icon('plus')}Add note</button><span class="grow"></span><button type="button" class="btn primary" data-x="done">Done</button></div>`;
+      $$('.note-item textarea', inner).forEach(autosize);
+      inner.scrollTop = st;
+    };
+    draw();
+    inner.addEventListener('input', e => {
+      if (e.target.dataset.noteText) {
+        const n = state.notes.find(x => x.id === e.target.dataset.noteText);
+        if (n) { n.text = e.target.value; autosize(e.target); save(); }
+      }
+    });
+    inner.addEventListener('click', e => {
+      if (e.target.closest('[data-x="done"]')) { close(); return; }
+      if (e.target.closest('[data-x="add-note"]')) {
+        state.notes.unshift({id: uid(), text: '', created: Date.now()});
+        save(); draw();
+        const ta = $(`[data-note-text="${state.notes[0].id}"]`, inner); if (ta) ta.focus();
+        return;
+      }
+      const del = e.target.closest('[data-x="del-note"]');
+      if (del) { state.notes = state.notes.filter(n => n.id !== del.dataset.note); save(); draw(); }
+    });
+    inner.addEventListener('focusout', e => {
+      if (!e.target.dataset.noteText) return;
+      const n = state.notes.find(x => x.id === e.target.dataset.noteText);
+      if (n && !n.text.trim()) { state.notes = state.notes.filter(x => x !== n); save(); setTimeout(() => { if (sheet && sheet.el.contains(inner)) draw(); }); }
+    });
   }, {cls: 'tall'});
 }
 
@@ -4158,7 +4217,7 @@ function aiRun(name, a) {
       const c = aiBoard(a.board); if (!c) return {error: `No board called "${a.board}". Boards: ${state.categories.map(x => x.name).join(', ')}`};
       const l = aiList(c, a.list, true);
       const k = newCard(String(a.title || 'Untitled').slice(0, 300), {desc: String(a.description || ''), due: validDate(a.due_date) ? a.due_date : '', priority: Math.max(0, PRIO_NAMES.indexOf(norm(a.priority))), pinned: !!a.pinned,
-        tags: aiTags(a.tags), checklist: (a.checklist || []).map(t => ({id: uid(), text: String(t).slice(0, 200), done: false, due: '', dueTime: '', note: ''}))});
+        tags: aiTags(a.tags), checklist: (a.checklist || []).map(t => ({id: uid(), text: String(t).slice(0, 200), done: false, due: '', dueTime: '', note: '', sub: []}))});
       if (k.due && validTime(a.due_time)) k.dueTime = a.due_time;
       if (k.due && REPEAT_KEYS.includes(a.repeat)) k.repeat = a.repeat;
       l.cards.push(k);
@@ -4177,7 +4236,7 @@ function aiRun(name, a) {
       if (a.priority) k.priority = Math.max(0, PRIO_NAMES.indexOf(norm(a.priority)));
       if (a.add_tags) aiTags(a.add_tags).forEach(id => { if (!k.tags.includes(id)) k.tags.push(id); });
       if (a.remove_tags) { const rm = new Set(state.tags.filter(t => a.remove_tags.some(n => norm(n) === norm(t.name))).map(t => t.id)); k.tags = k.tags.filter(id => !rm.has(id)); }
-      if (a.add_checklist_items) a.add_checklist_items.forEach(t => k.checklist.push({id: uid(), text: String(t).slice(0, 200), done: false, due: '', dueTime: '', note: ''}));
+      if (a.add_checklist_items) a.add_checklist_items.forEach(t => k.checklist.push({id: uid(), text: String(t).slice(0, 200), done: false, due: '', dueTime: '', note: '', sub: []}));
       if (typeof a.pinned === 'boolean') k.pinned = a.pinned;
       if (typeof a.done === 'boolean' && a.done !== k.done) setDone(k, a.done);
       if (a.move_to_board || a.move_to_list) {
@@ -4532,28 +4591,6 @@ function openAISettings(back) {
   }, {cls: 'compact'});
 }
 
-/* ================= copy a card to any list on any board ================= */
-function openCopySheet(cardId, back) {
-  const f = findCard(cardId); if (!f) return;
-  openSheet((inner, close) => {
-    inner.innerHTML = `<h2 class="sheet-title sheet-drag">Copy card</h2><p class="sheet-text">“${esc(f.card.title)}” with its notes, tags, checklist, priority and due date.</p>`
-      + `<div class="fld"><label for="cp-list" class="lbl">To list</label><span class="select-wrap block"><select id="cp-list" class="select">`
-      + state.categories.map(c => `<optgroup label="${esc(c.name)}">` + c.lists.map(l => `<option value="${l.id}"${l === f.list ? ' selected' : ''}>${esc(l.title)}</option>`).join('') + `</optgroup>`).join('')
-      + `</select></span></div><div class="sheet-actions"><button type="button" class="btn" data-x="cancel">Cancel</button><button type="button" class="btn primary" data-x="go">${icon('copy')}Copy</button></div>`;
-    inner.addEventListener('click', e => {
-      const x = e.target.closest('[data-x]'); if (!x) return;
-      if (x.dataset.x === 'cancel') { close(); if (back) back(); return; }
-      const to = findList($('#cp-list', inner).value), src = findCard(cardId); if (!to || !src) return;
-      const cp = cloneCard(src.card); cp.done = false; delete cp.fromList;
-      to.list.cards.splice(to.list === src.list ? src.index + 1 : to.list.cards.length, 0, cp);
-      if (to.list.collapsed) to.list.collapsed = false;
-      haptic('success'); commit(); close();
-      toast(`Copied to ${to.list.title}${to.cat !== src.cat ? ' in ' + to.cat.name : ''}`, to.cat !== currentCat() ? {action: 'Open', onAction: () => { state.active = to.cat.id; commit(); }} : {});
-      if (back) back();
-    });
-  }, {cls: 'compact'});
-}
-
 /* ================= card detail ================= */
 let openCardId = null;
 function openCard(id) {
@@ -4606,21 +4643,30 @@ function openCard(id) {
             const itDue = it.due ? dueInfo(it.due, it.done) : null;
             const dueChip = itDue && itDue.text ? `<span class="chip ${itDue.cls}" title="Due date">${icon('cal')}${itDue.text}${it.dueTime ? ' ' + it.dueTime : ''}</span>` : '';
             const noteChip = (it.note || '').trim() ? `<span class="chip" title="${esc(it.note)}">${icon('notes')}</span>` : '';
+            const sub = it.sub || [];
+            const subDoneN = sub.filter(s => s.done).length;
+            const subChip = sub.length ? `<span class="chip" title="Sub-items">${icon('checklist')}${subDoneN}/${sub.length}</span>` : '';
             const open = ui.clOpen === it.id;
             return `<li class="${it.done ? 'on' : ''}" data-cli="${it.id}">`
               + `<button type="button" class="icon-btn sm cl-handle" data-cl-drag aria-label="Drag to reorder">${icon('sort')}</button>`
               + `<button type="button" class="cl-check${it.done ? ' on' : ''}" data-cs="cl-toggle" data-i="${it.id}" aria-pressed="${it.done}" aria-label="${it.done ? 'Uncheck' : 'Check'} item">${icon('check')}</button>`
               + `<input class="cl-text" data-cl="${it.id}" value="${esc(it.text)}" aria-label="Checklist item" enterkeyhint="done" autocomplete="off">`
-              + dueChip + noteChip
-              + `<button type="button" class="icon-btn sm${open ? ' on' : ''}" data-cs="cl-expand" data-i="${it.id}" aria-label="Due date and note" title="Due date and note">${icon('cal')}</button>`
+              + dueChip + noteChip + subChip
+              + `<button type="button" class="icon-btn sm${open ? ' on' : ''}" data-cs="cl-expand" data-i="${it.id}" aria-label="Due date, note and sub-items" title="Due date, note and sub-items">${icon('cal')}</button>`
               + `<button type="button" class="icon-btn sm" data-cs="cl-del" data-i="${it.id}" aria-label="Remove item">${icon('x')}</button></li>`
               + (open ? `<li class="cl-extra" data-extra="${it.id}">`
                 + `<span class="cl-extra-row"><input type="date" id="cl-ed-date" class="field sm" value="${esc(it.due)}" aria-label="Checklist item due date"><input type="time" id="cl-ed-time" class="field sm" value="${esc(it.dueTime)}"${it.due ? '' : ' disabled'} aria-label="Checklist item due time">`
                 + (it.due ? `<button type="button" class="link" data-cs="cl-due-clear" data-i="${it.id}">Clear date</button>` : '') + `</span>`
-                + `<textarea id="cl-ed-note" class="field area sm" rows="2" placeholder="Note" aria-label="Checklist item note">${esc(it.note)}</textarea></li>` : '');
+                + `<textarea id="cl-ed-note" class="field area sm" rows="2" placeholder="Note" aria-label="Checklist item note">${esc(it.note)}</textarea>`
+                + `<div class="cl-sub-sec"><span class="lbl-sm">Sub-items</span>`
+                + `<ul class="cl-sub">` + sub.map(s => `<li class="${s.done ? 'on' : ''}" data-subli="${s.id}">`
+                  + `<button type="button" class="cl-check${s.done ? ' on' : ''}" data-cs="sub-toggle" data-i="${it.id}" data-s="${s.id}" aria-pressed="${s.done}" aria-label="${s.done ? 'Uncheck' : 'Check'} sub-item">${icon('check')}</button>`
+                  + `<input class="cl-text" data-sub="${s.id}" data-sub-parent="${it.id}" value="${esc(s.text)}" aria-label="Sub-item" enterkeyhint="done" autocomplete="off">`
+                  + `<button type="button" class="icon-btn sm" data-cs="sub-del" data-i="${it.id}" data-s="${s.id}" aria-label="Remove sub-item">${icon('x')}</button></li>`).join('') + `</ul>`
+                + `<input class="field sm" data-sub-add="${it.id}" placeholder="Add a sub-item" enterkeyhint="enter" autocomplete="off" aria-label="Add sub-item"></div></li>` : '');
           }).join('') + `</ul>`
         + `<input id="cs-cl-add" class="field" placeholder="Add an item" enterkeyhint="enter" autocomplete="off" aria-label="Add checklist item"></section>`
-        + `<footer class="cs-foot"><span class="mono muted">Added ${fmtDate(k.created, true)}</span><span class="grow"></span><button type="button" class="btn" data-cs="copy">${icon('copy')}Copy to…</button><button type="button" class="btn danger" data-cs="delete">${icon('trash')}Delete card</button></footer>`;
+        + `<footer class="cs-foot"><span class="mono muted">Added ${fmtDate(k.created, true)}</span><span class="grow"></span><button type="button" class="btn" data-cs="copy">${icon('copy')}Copy</button><button type="button" class="btn danger" data-cs="delete">${icon('trash')}Delete card</button></footer>`;
       if (wide.matches) {
         const secs = $$(':scope > .cs-sec', inner);
         if (secs.length) {
@@ -4660,11 +4706,13 @@ function openCard(id) {
         case 'ai': close(); openAssistant({ctx: {kind: 'card', id, title: k.title}}); return;
         case 'pin': k.pinned = !k.pinned; haptic('select'); toast(k.pinned ? 'Pinned to the top of the column' : 'Unpinned'); break;
         case 'prio': k.priority = +b.dataset.p; haptic('select'); break;
-        case 'copy': openCopySheet(id, back); return;
+        case 'copy': copyCardToClipboard(id); break;
         case 'cl-toggle': { const it = k.checklist.find(i => i.id === b.dataset.i); if (it) { it.done = !it.done; haptic(it.done ? 'success' : 'select'); } break; }
         case 'cl-del': k.checklist = k.checklist.filter(i => i.id !== b.dataset.i); if (ui.clOpen === b.dataset.i) ui.clOpen = null; break;
         case 'cl-expand': ui.clOpen = ui.clOpen === b.dataset.i ? null : b.dataset.i; haptic('select'); break;
         case 'cl-due-clear': { const it = k.checklist.find(i => i.id === b.dataset.i); if (it) { it.due = ''; it.dueTime = ''; } break; }
+        case 'sub-toggle': { const it = k.checklist.find(i => i.id === b.dataset.i); const s = it && (it.sub || []).find(x => x.id === b.dataset.s); if (s) { s.done = !s.done; haptic(s.done ? 'success' : 'select'); } break; }
+        case 'sub-del': { const it = k.checklist.find(i => i.id === b.dataset.i); if (it) it.sub = (it.sub || []).filter(x => x.id !== b.dataset.s); break; }
         case 'delete': close(); withUndo('Card deleted', () => { const r = running(); if (r && r.cardId === k.id) stopTracking(); f.list.cards.splice(f.list.cards.indexOf(k), 1); }); return;
         default: return;
       }
@@ -4677,6 +4725,7 @@ function openCard(id) {
       else if (t.id === 'cs-desc') { k.desc = t.value; autosize(t); }
       else if (t.dataset.cl) { const it = k.checklist.find(i => i.id === t.dataset.cl); if (it) it.text = t.value; }
       else if (t.id === 'cl-ed-note' && ui.clOpen) { const it = k.checklist.find(i => i.id === ui.clOpen); if (it) { it.note = t.value; autosize(t); } }
+      else if (t.dataset.subParent) { const it = k.checklist.find(i => i.id === t.dataset.subParent); const s = it && (it.sub || []).find(x => x.id === t.dataset.sub); if (s) s.text = t.value; }
       else return;
       save(); scheduleRender();
     });
@@ -4704,15 +4753,26 @@ function openCard(id) {
     });
     inner.addEventListener('keydown', e => {
       const t = e.target;
-      if ((t.id === 'cs-title' || t.dataset.cl) && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); t.blur(); return; }
+      if ((t.id === 'cs-title' || t.dataset.cl || t.dataset.subParent) && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); t.blur(); return; }
       if (t.id === 'cs-cl-add' && e.key === 'Enter' && !e.isComposing) {
         e.preventDefault();
         const v = t.value.trim(); if (!v) return;
         const f = findCard(id); if (!f) return;
         t.value = '';
-        f.card.checklist.push({id: uid(), text: v, done: false, due: '', dueTime: '', note: ''});
+        f.card.checklist.push({id: uid(), text: v, done: false, due: '', dueTime: '', note: '', sub: []});
         save(); scheduleRender(); draw();
         const n = $('#cs-cl-add', inner); n.focus({preventScroll: true}); n.scrollIntoView({block: 'nearest'});
+      }
+      if (t.dataset.subAdd && e.key === 'Enter' && !e.isComposing) {
+        e.preventDefault();
+        const v = t.value.trim(); if (!v) return;
+        const f = findCard(id); if (!f) return;
+        const it = f.card.checklist.find(i => i.id === t.dataset.subAdd); if (!it) return;
+        t.value = '';
+        if (!it.sub) it.sub = [];
+        it.sub.push({id: uid(), text: v, done: false});
+        save(); scheduleRender(); draw();
+        const n = $(`[data-sub-add="${it.id}"]`, inner); if (n) { n.focus({preventScroll: true}); n.scrollIntoView({block: 'nearest'}); }
       }
     });
     inner.addEventListener('focusout', e => {
@@ -4727,8 +4787,25 @@ function openCard(id) {
         const v = t.value.trim();
         if (v) {
           t.value = '';
-          f.card.checklist.push({id: uid(), text: v, done: false, due: '', dueTime: '', note: ''});
+          f.card.checklist.push({id: uid(), text: v, done: false, due: '', dueTime: '', note: '', sub: []});
           save(); scheduleRender(); setTimeout(() => { if (sheet && sheet.el.contains(inner)) draw(); });
+        }
+      }
+      if (t.dataset.subParent && !t.value.trim()) {
+        const it = f.card.checklist.find(i => i.id === t.dataset.subParent);
+        if (it) it.sub = (it.sub || []).filter(x => x.id !== t.dataset.sub);
+        save(); scheduleRender(); setTimeout(() => { if (sheet && sheet.el.contains(inner)) draw(); });
+      }
+      /* clicking away from "Add a sub-item" commits it, same as pressing Enter */
+      if (t.dataset.subAdd) {
+        const v = t.value.trim();
+        if (v) {
+          const it = f.card.checklist.find(i => i.id === t.dataset.subAdd);
+          if (it) {
+            if (!it.sub) it.sub = [];
+            it.sub.push({id: uid(), text: v, done: false});
+            save(); scheduleRender(); setTimeout(() => { if (sheet && sheet.el.contains(inner)) draw(); });
+          }
         }
       }
     });
