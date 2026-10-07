@@ -650,7 +650,7 @@ const DEFAULT_TAGS = [
   ['Area', 'Home', 'moss'], ['Area', 'Work', 'ultra'], ['Area', 'Personal', 'rose'], ['Area', 'Health', 'lime'], ['Area', 'Finance', 'mustard']
 ];
 const LONGPRESS_MS = 260;
-const BOARD_DROP_HOLD_MS = 550;
+const BOARD_DROP_HOLD_MS = 350;
 const HAPTIC_MS = {light: 6, medium: 14, strong: 26};
 const PERIODS = [['week', 'This week'], ['lastweek', 'Last week'], ['month', 'This month'], ['lastmonth', 'Last month'], ['custom', 'Custom']];
 
@@ -1920,10 +1920,13 @@ document.addEventListener('focusout', e => {
     setTimeout(() => { if (!drag) { renderTabs(); renderBoard(); } });
   } else if (t.id === 'composer-input') {
     if (e.relatedTarget && e.relatedTarget.closest('.composer')) return;
-    if (ui.composer && !t.value.trim()) { ui.composer = null; setTimeout(() => { if (!drag && !ui.composer) renderBoard(); }); }
+    if (!ui.composer) return;
+    if (t.value.trim()) { addFromComposer(); ui.composer = null; ui.focus = null; setTimeout(() => { if (!drag) renderBoard(); }); }
+    else { ui.composer = null; setTimeout(() => { if (!drag && !ui.composer) renderBoard(); }); }
   } else if (t.id === 'addlist-input') {
     if (e.relatedTarget && e.relatedTarget.closest('.add-list')) return;
-    if (!t.value.trim()) { ui.addingList = false; setTimeout(() => { if (!drag && !ui.addingList) renderBoard(); }); }
+    if (t.value.trim()) { addList(); ui.addingList = false; ui.focus = null; setTimeout(() => { if (!drag) renderBoard(); }); }
+    else { ui.addingList = false; setTimeout(() => { if (!drag && !ui.addingList) renderBoard(); }); }
   }
 });
 
