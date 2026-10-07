@@ -322,21 +322,16 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 .cl li .chip{flex:none;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cl-extra{display:flex;flex-direction:column;gap:8px;min-height:0!important;padding:4px 6px 12px 36px;margin-top:-4px}
 .cl-extra-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.cl-sub-sec{margin-top:2px}
-.cl-sub-sec>.lbl-sm{display:block;font:600 11px/1 var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
-.cl-sub{list-style:none;margin:0 0 6px;padding:0}
-.cl-sub li{display:flex;align-items:center;gap:4px;min-height:36px}
-.cl-sub li.on .cl-text{color:var(--muted);text-decoration:line-through}
 .field.sm{padding:7px 10px;font-size:14px;min-height:0}
 .note-list{display:flex;flex-direction:column;gap:10px;margin-bottom:4px}
 .note-item{display:flex;align-items:flex-start;gap:6px}
 .note-item .field{flex:1}
 .note-item .icon-btn{margin-top:4px}
 .cs-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:12px;border-top:1px solid var(--line)}
-.trash-drop{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) scale(.8);width:58px;height:58px;border-radius:50%;background:var(--danger);color:#fff;display:flex;align-items:center;justify-content:center;z-index:60;pointer-events:none;box-shadow:var(--shadow-lift);opacity:0;transition:transform .15s ease,opacity .15s ease}
-.trash-drop.is-near{transform:translateX(-50%) scale(1)}
+.trash-drop{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(140%) scale(.8);width:58px;height:58px;border-radius:50%;background:var(--danger);color:#fff;display:flex;align-items:center;justify-content:center;z-index:60;pointer-events:none;box-shadow:var(--shadow-lift);opacity:0;transition:transform .18s cubic-bezier(.2,.8,.2,1),opacity .18s ease}
+.trash-drop.is-near{transform:translateX(-50%) translateY(0) scale(1)}
 .trash-drop .ic{width:26px;height:26px}
-.trash-drop.danger-hot{transform:translateX(-50%) scale(1.14)}
+.trash-drop.danger-hot{transform:translateX(-50%) translateY(0) scale(1.14)}
 .ghost.to-trash{transition:transform .18s ease,opacity .18s ease!important}
 
 /* ---------- time & focus ---------- */
@@ -596,7 +591,6 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
   .cal-day{min-height:104px}
   .sheet.theme-sheet{width:min(900px,calc(100vw - 64px))}
   .themes{grid-template-columns:repeat(4,minmax(0,1fr))}
-  #ai-btn{display:none}
   .ai-fab:not(.hide){display:grid}
 }
 /* assistant: floating button + docked chat window (desktop only) */
@@ -619,10 +613,7 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 <div id="app">
   <header class="top">
     <nav class="tabs" id="tabs" aria-label="Categories"></nav>
-    <button type="button" class="icon-btn top-btn" id="ai-btn" data-action="assistant" aria-label="AI assistant"></button>
-    <button type="button" class="icon-btn top-btn" id="cal-btn" data-action="calendar" aria-label="Calendar"></button>
-    <button type="button" class="icon-btn top-btn" id="notes-btn" data-action="notes" aria-label="Notes"></button>
-    <button type="button" class="icon-btn top-btn" id="time-btn" data-action="time" aria-label="Focus timer and work hours"></button>
+    <button type="button" class="icon-btn top-btn" id="feat-btn" data-action="features" aria-label="Assistant, notes, focus/work and calendar"></button>
     <button type="button" class="icon-btn" id="app-menu-btn" data-action="menu" aria-label="Settings and backup"></button>
   </header>
   <main class="board" id="board" aria-label="Lists"></main>
@@ -968,7 +959,7 @@ function orderedCards(l, list) {
     || idx.get(a.id) - idx.get(b.id));
 }
 /* deep copy with fresh ids (cards keep their content; time entries stay with the original) */
-const cloneCard = k => ({...JSON.parse(JSON.stringify(k)), id: uid(), created: Date.now(), checklist: k.checklist.map(i => ({...i, id: uid(), sub: (i.sub || []).map(s => ({...s, id: uid()}))})), fromList: undefined});
+const cloneCard = k => ({...JSON.parse(JSON.stringify(k)), id: uid(), created: Date.now(), checklist: k.checklist.map(i => ({...i, id: uid()})), fromList: undefined});
 const cloneList = l => ({...l, id: uid(), isDone: false, cards: l.cards.map(cloneCard)});
 const newList = (title, extra = {}) => Object.assign({id: uid(), title, collapsed: false, cards: []}, extra);
 const newCategory = (name, color) => ({id: uid(), name, color, labels: {}, lists: [newList('To do'), newList('Doing'), newList('Done')]});
@@ -1086,10 +1077,11 @@ function normalize(s) {
           k.labels.filter(x => LABEL_KEYS.includes(x)).forEach(x => { const id = legacyTag(String(legacyNames[x] || '').trim(), x); if (!k.tags.includes(id)) k.tags.push(id); });
           delete k.labels;
         }
+        /* sub-items (item.sub[]) were removed from the UI; any pre-existing synced/backed-up data
+           with a non-empty item.sub is silently dropped here rather than migrated or rendered */
         k.checklist = Array.isArray(k.checklist) ? k.checklist.map(i => {
           const due = /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '';
-          const sub = Array.isArray(i.sub) ? i.sub.filter(x => x && x.id).map(x => ({id: x.id, text: String(x.text || ''), done: !!x.done})) : [];
-          return {id: i.id || uid(), text: String(i.text || ''), done: !!i.done, due, dueTime: /^\d{2}:\d{2}$/.test(i.dueTime || '') && due ? i.dueTime : '', note: String(i.note || ''), sub};
+          return {id: i.id || uid(), text: String(i.text || ''), done: !!i.done, due, dueTime: /^\d{2}:\d{2}$/.test(i.dueTime || '') && due ? i.dueTime : '', note: String(i.note || '')};
         }) : [];
         k.created = k.created || Date.now();
         if (k.jobId && k.jobId !== '__none' && !jobIds.has(k.jobId)) delete k.jobId;
@@ -1523,10 +1515,7 @@ const tabsEl = $('#tabs');
 const boardEl = $('#board');
 const dockEl = $('#dock');
 $('#app-menu-btn').innerHTML = icon('dotsV');
-$('#time-btn').innerHTML = icon('timer');
-$('#cal-btn').innerHTML = icon('cal');
-$('#notes-btn').innerHTML = icon('notes');
-$('#ai-btn').innerHTML = icon('sparkle');
+$('#feat-btn').innerHTML = icon('dotsH');
 $('#ai-fab').innerHTML = icon('sparkle');
 const trashEl = $('#trash-drop');
 trashEl.innerHTML = icon('trash');
@@ -1655,7 +1644,7 @@ boardEl.addEventListener('scroll', () => { ui.scroll[boardEl.dataset.cat] = boar
 function renderDock() {
   const r = running(), p = pr(), now = Date.now();
   const pomoOn = p.phase !== 'idle';
-  $('#time-btn').classList.toggle('is-live', !!r || !!p.endsAt);
+  $('#feat-btn').classList.toggle('is-live', !!r || !!p.endsAt);
   if (!r && !pomoOn) { dockEl.hidden = true; document.documentElement.classList.remove('has-dock'); return; }
   const rows = [];
   if (pomoOn) {
@@ -1762,7 +1751,7 @@ function spawnNext(card) {
   const f = findCard(card.id); if (!next || !f) return '';
   const cp = cloneCard(card);
   Object.assign(cp, {done: false, due: next, repeat: card.repeat}); delete cp.fromList; delete cp.spawned; delete cp.repeatWas;
-  cp.checklist.forEach(i => { i.done = false; (i.sub || []).forEach(s => { s.done = false; }); });
+  cp.checklist.forEach(i => { i.done = false; });
   f.list.cards.splice(f.index, 0, cp);
   card.spawned = cp.id; card.repeatWas = card.repeat; card.repeat = 'none';
   const t = dueInfo(next, false).text || fmtDate(parseISO(next));
@@ -1821,6 +1810,7 @@ document.addEventListener('click', e => {
       }});
       break;
     case 'menu': appMenu(a); break;
+    case 'features': featuresMenu(a); break;
     case 'time': openTimePanel(); break;
     case 'calendar': openCalendar(); break;
     case 'notes': openNotesSheet(); break;
@@ -2072,20 +2062,25 @@ function placeInto(cont, before) {
   flip(() => cont.insertBefore(el, before));
 }
 
-/* drag a card toward the bottom of the screen to drop it on the trash; fades in and reddens as it gets closer */
+/* drag a card toward the bottom of the screen to drop it on the trash; slides/pops up from
+   off-screen at the bottom as the card approaches, reddening as it gets closer */
 function updateTrash() {
-  /* fades/grows in continuously as the pointer nears the bottom of the screen, over a wider
-     approach zone (220px) than the final drop zone (54px), so it visibly eases in rather than popping */
+  /* rises continuously from off-screen (translateY 140%) to in-place (0) as the pointer nears
+     the bottom of the screen, over a wider approach zone (220px) than the final drop zone (54px),
+     so it visibly slides up rather than popping or just fading */
   const approach = 220, zone = 130, distFromBottom = innerHeight - drag.y;
   if (distFromBottom < approach) {
     const near = Math.max(0, Math.min(1, 1 - distFromBottom / approach));
     const held = Math.min(1, (performance.now() - drag.startedAt) / 1500) * 0.15;
+    const rise = (140 * (1 - near)).toFixed(1);
+    const scale = (0.8 + near * 0.2).toFixed(2);
+    trashEl.style.transform = `translateX(-50%) translateY(${rise}%) scale(${scale})`;
     trashEl.style.opacity = Math.min(1, 0.15 + near * 0.75 + held).toFixed(2);
     trashEl.classList.toggle('is-near', distFromBottom < zone);
     drag.overTrash = distFromBottom < 54;
     trashEl.classList.toggle('danger-hot', drag.overTrash);
   } else {
-    trashEl.style.opacity = '0'; trashEl.classList.remove('is-near', 'danger-hot'); drag.overTrash = false;
+    trashEl.style.transform = ''; trashEl.style.opacity = '0'; trashEl.classList.remove('is-near', 'danger-hot'); drag.overTrash = false;
   }
 }
 
@@ -2186,7 +2181,7 @@ function endDrag() {
   suppressUntil = performance.now() + 400;
   if (d.hover) d.hover.classList.remove('is-drop');
   document.documentElement.classList.remove('dragging');
-  trashEl.style.opacity = '0'; trashEl.classList.remove('is-near', 'danger-hot');
+  trashEl.style.transform = ''; trashEl.style.opacity = '0'; trashEl.classList.remove('is-near', 'danger-hot');
   if (d.type === 'card' && d.overTrash) {
     const f = findCard(d.el.dataset.card);
     d.ghost.style.transition = 'transform .18s ease, opacity .18s ease';
@@ -2464,6 +2459,17 @@ function listMenu(anchor, lid) {
     {type: 'sep'},
     {label: 'Delete list', icon: 'trash', danger: true, hint: l.cards.length ? `${l.cards.length} card${l.cards.length > 1 ? 's' : ''} will be deleted` : '',
       onSelect: () => withUndo(`Deleted “${l.title}”`, () => { c.lists.splice(c.lists.indexOf(l), 1); })}
+  ]);
+}
+
+/* one top-bar icon for the four feature entry points (assistant, notes, focus/work, calendar),
+   so they don't crowd the bar as separate icons; each item opens the exact same sheet/window as before */
+function featuresMenu(anchor) {
+  openMenu(anchor, [
+    {label: 'Assistant', icon: 'sparkle', onSelect: () => openAssistant()},
+    {label: 'Notes', icon: 'notes', onSelect: () => openNotesSheet()},
+    {label: 'Focus & work', icon: 'timer', onSelect: () => openTimePanel()},
+    {label: 'Calendar', icon: 'cal', onSelect: () => openCalendar()}
   ]);
 }
 
@@ -4643,27 +4649,18 @@ function openCard(id) {
             const itDue = it.due ? dueInfo(it.due, it.done) : null;
             const dueChip = itDue && itDue.text ? `<span class="chip ${itDue.cls}" title="Due date">${icon('cal')}${itDue.text}${it.dueTime ? ' ' + it.dueTime : ''}</span>` : '';
             const noteChip = (it.note || '').trim() ? `<span class="chip" title="${esc(it.note)}">${icon('notes')}</span>` : '';
-            const sub = it.sub || [];
-            const subDoneN = sub.filter(s => s.done).length;
-            const subChip = sub.length ? `<span class="chip" title="Sub-items">${icon('checklist')}${subDoneN}/${sub.length}</span>` : '';
             const open = ui.clOpen === it.id;
             return `<li class="${it.done ? 'on' : ''}" data-cli="${it.id}">`
               + `<button type="button" class="icon-btn sm cl-handle" data-cl-drag aria-label="Drag to reorder">${icon('sort')}</button>`
               + `<button type="button" class="cl-check${it.done ? ' on' : ''}" data-cs="cl-toggle" data-i="${it.id}" aria-pressed="${it.done}" aria-label="${it.done ? 'Uncheck' : 'Check'} item">${icon('check')}</button>`
               + `<input class="cl-text" data-cl="${it.id}" value="${esc(it.text)}" aria-label="Checklist item" enterkeyhint="done" autocomplete="off">`
-              + dueChip + noteChip + subChip
-              + `<button type="button" class="icon-btn sm${open ? ' on' : ''}" data-cs="cl-expand" data-i="${it.id}" aria-label="Due date, note and sub-items" title="Due date, note and sub-items">${icon('cal')}</button>`
+              + dueChip + noteChip
+              + `<button type="button" class="icon-btn sm${open ? ' on' : ''}" data-cs="cl-expand" data-i="${it.id}" aria-label="Due date and note" title="Due date and note">${icon('cal')}</button>`
               + `<button type="button" class="icon-btn sm" data-cs="cl-del" data-i="${it.id}" aria-label="Remove item">${icon('x')}</button></li>`
               + (open ? `<li class="cl-extra" data-extra="${it.id}">`
                 + `<span class="cl-extra-row"><input type="date" id="cl-ed-date" class="field sm" value="${esc(it.due)}" aria-label="Checklist item due date"><input type="time" id="cl-ed-time" class="field sm" value="${esc(it.dueTime)}"${it.due ? '' : ' disabled'} aria-label="Checklist item due time">`
                 + (it.due ? `<button type="button" class="link" data-cs="cl-due-clear" data-i="${it.id}">Clear date</button>` : '') + `</span>`
-                + `<textarea id="cl-ed-note" class="field area sm" rows="2" placeholder="Note" aria-label="Checklist item note">${esc(it.note)}</textarea>`
-                + `<div class="cl-sub-sec"><span class="lbl-sm">Sub-items</span>`
-                + `<ul class="cl-sub">` + sub.map(s => `<li class="${s.done ? 'on' : ''}" data-subli="${s.id}">`
-                  + `<button type="button" class="cl-check${s.done ? ' on' : ''}" data-cs="sub-toggle" data-i="${it.id}" data-s="${s.id}" aria-pressed="${s.done}" aria-label="${s.done ? 'Uncheck' : 'Check'} sub-item">${icon('check')}</button>`
-                  + `<input class="cl-text" data-sub="${s.id}" data-sub-parent="${it.id}" value="${esc(s.text)}" aria-label="Sub-item" enterkeyhint="done" autocomplete="off">`
-                  + `<button type="button" class="icon-btn sm" data-cs="sub-del" data-i="${it.id}" data-s="${s.id}" aria-label="Remove sub-item">${icon('x')}</button></li>`).join('') + `</ul>`
-                + `<input class="field sm" data-sub-add="${it.id}" placeholder="Add a sub-item" enterkeyhint="enter" autocomplete="off" aria-label="Add sub-item"></div></li>` : '');
+                + `<textarea id="cl-ed-note" class="field area sm" rows="2" placeholder="Note" aria-label="Checklist item note">${esc(it.note)}</textarea></li>` : '');
           }).join('') + `</ul>`
         + `<input id="cs-cl-add" class="field" placeholder="Add an item" enterkeyhint="enter" autocomplete="off" aria-label="Add checklist item"></section>`
         + `<footer class="cs-foot"><span class="mono muted">Added ${fmtDate(k.created, true)}</span><span class="grow"></span><button type="button" class="btn" data-cs="copy">${icon('copy')}Copy</button><button type="button" class="btn danger" data-cs="delete">${icon('trash')}Delete card</button></footer>`;
@@ -4711,8 +4708,6 @@ function openCard(id) {
         case 'cl-del': k.checklist = k.checklist.filter(i => i.id !== b.dataset.i); if (ui.clOpen === b.dataset.i) ui.clOpen = null; break;
         case 'cl-expand': ui.clOpen = ui.clOpen === b.dataset.i ? null : b.dataset.i; haptic('select'); break;
         case 'cl-due-clear': { const it = k.checklist.find(i => i.id === b.dataset.i); if (it) { it.due = ''; it.dueTime = ''; } break; }
-        case 'sub-toggle': { const it = k.checklist.find(i => i.id === b.dataset.i); const s = it && (it.sub || []).find(x => x.id === b.dataset.s); if (s) { s.done = !s.done; haptic(s.done ? 'success' : 'select'); } break; }
-        case 'sub-del': { const it = k.checklist.find(i => i.id === b.dataset.i); if (it) it.sub = (it.sub || []).filter(x => x.id !== b.dataset.s); break; }
         case 'delete': close(); withUndo('Card deleted', () => { const r = running(); if (r && r.cardId === k.id) stopTracking(); f.list.cards.splice(f.list.cards.indexOf(k), 1); }); return;
         default: return;
       }
@@ -4725,7 +4720,6 @@ function openCard(id) {
       else if (t.id === 'cs-desc') { k.desc = t.value; autosize(t); }
       else if (t.dataset.cl) { const it = k.checklist.find(i => i.id === t.dataset.cl); if (it) it.text = t.value; }
       else if (t.id === 'cl-ed-note' && ui.clOpen) { const it = k.checklist.find(i => i.id === ui.clOpen); if (it) { it.note = t.value; autosize(t); } }
-      else if (t.dataset.subParent) { const it = k.checklist.find(i => i.id === t.dataset.subParent); const s = it && (it.sub || []).find(x => x.id === t.dataset.sub); if (s) s.text = t.value; }
       else return;
       save(); scheduleRender();
     });
@@ -4753,26 +4747,15 @@ function openCard(id) {
     });
     inner.addEventListener('keydown', e => {
       const t = e.target;
-      if ((t.id === 'cs-title' || t.dataset.cl || t.dataset.subParent) && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); t.blur(); return; }
+      if ((t.id === 'cs-title' || t.dataset.cl) && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); t.blur(); return; }
       if (t.id === 'cs-cl-add' && e.key === 'Enter' && !e.isComposing) {
         e.preventDefault();
         const v = t.value.trim(); if (!v) return;
         const f = findCard(id); if (!f) return;
         t.value = '';
-        f.card.checklist.push({id: uid(), text: v, done: false, due: '', dueTime: '', note: '', sub: []});
+        f.card.checklist.push({id: uid(), text: v, done: false, due: '', dueTime: '', note: ''});
         save(); scheduleRender(); draw();
         const n = $('#cs-cl-add', inner); n.focus({preventScroll: true}); n.scrollIntoView({block: 'nearest'});
-      }
-      if (t.dataset.subAdd && e.key === 'Enter' && !e.isComposing) {
-        e.preventDefault();
-        const v = t.value.trim(); if (!v) return;
-        const f = findCard(id); if (!f) return;
-        const it = f.card.checklist.find(i => i.id === t.dataset.subAdd); if (!it) return;
-        t.value = '';
-        if (!it.sub) it.sub = [];
-        it.sub.push({id: uid(), text: v, done: false});
-        save(); scheduleRender(); draw();
-        const n = $(`[data-sub-add="${it.id}"]`, inner); if (n) { n.focus({preventScroll: true}); n.scrollIntoView({block: 'nearest'}); }
       }
     });
     inner.addEventListener('focusout', e => {
@@ -4787,25 +4770,8 @@ function openCard(id) {
         const v = t.value.trim();
         if (v) {
           t.value = '';
-          f.card.checklist.push({id: uid(), text: v, done: false, due: '', dueTime: '', note: '', sub: []});
+          f.card.checklist.push({id: uid(), text: v, done: false, due: '', dueTime: '', note: ''});
           save(); scheduleRender(); setTimeout(() => { if (sheet && sheet.el.contains(inner)) draw(); });
-        }
-      }
-      if (t.dataset.subParent && !t.value.trim()) {
-        const it = f.card.checklist.find(i => i.id === t.dataset.subParent);
-        if (it) it.sub = (it.sub || []).filter(x => x.id !== t.dataset.sub);
-        save(); scheduleRender(); setTimeout(() => { if (sheet && sheet.el.contains(inner)) draw(); });
-      }
-      /* clicking away from "Add a sub-item" commits it, same as pressing Enter */
-      if (t.dataset.subAdd) {
-        const v = t.value.trim();
-        if (v) {
-          const it = f.card.checklist.find(i => i.id === t.dataset.subAdd);
-          if (it) {
-            if (!it.sub) it.sub = [];
-            it.sub.push({id: uid(), text: v, done: false});
-            save(); scheduleRender(); setTimeout(() => { if (sheet && sheet.el.contains(inner)) draw(); });
-          }
         }
       }
     });
