@@ -1725,6 +1725,11 @@ function addFromComposer() {
   const text = ta ? ta.value : ui.composer.text;
   const titles = text.split('\n').map(s => s.trim()).filter(Boolean);
   if (!titles.length) { if (ta) ta.focus(); return; }
+  /* clear the real DOM value right away, not just ui.composer.text - the "Add" button blurs this
+     textarea before its own click fires, and that blur already auto-submits (see the focusout
+     handler below); without this, the button's click handler (or any later focusout) would still
+     read the same un-cleared value and add the same titles a second time */
+  if (ta) ta.value = '';
   const c = currentCat();
   titles.forEach(t => c.seq.push(newCard(t)));
   ui.composer.text = ''; ui.focus = 'composer-input'; ui.scrollToEnd = true;
