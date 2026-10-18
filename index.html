@@ -102,8 +102,10 @@ html.dragging .tabs{scroll-snap-type:none}
 html.dragging,html.dragging *{cursor:grabbing!important}
 
 .divider{flex:none;display:flex;align-items:center;gap:0;min-height:40px;padding:10px 4px 2px 2px;cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.divider.has-color{border-left:3px solid var(--c);padding-left:7px;border-radius:0 6px 6px 0}
 .divider.is-done-header{cursor:default;padding-top:18px}
-.divider-label{flex:1;min-width:0;text-align:left;text-transform:var(--title-tt);border:0;background:none;padding:7px 8px;border-radius:8px;color:var(--muted);font:650 13px/1.2 var(--font-mono);letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.divider-dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--c);margin-right:7px}
+.divider-label{flex:1;min-width:0;display:flex;align-items:center;text-align:left;text-transform:var(--title-tt);border:0;background:none;padding:7px 8px;border-radius:8px;color:var(--muted);font:650 13px/1.2 var(--font-mono);letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .divider-label:hover{background:var(--hover);color:var(--ink)}
 .divider.is-done-header .divider-label{cursor:default}
 .divider.is-done-header .divider-label:hover{background:none}
@@ -111,6 +113,17 @@ html.dragging,html.dragging *{cursor:grabbing!important}
 .divider-count{flex:none;font:500 12px/1 var(--font-mono);color:var(--muted);padding:0 6px;font-variant-numeric:tabular-nums}
 .divider.is-pressing{background:var(--hover);border-radius:12px}
 .divider-del{flex:none}
+.seg-add{margin:0 0 4px 2px;height:34px;font-size:13.5px}
+
+.preset-list{display:flex;flex-direction:column;gap:2px;margin-top:6px}
+.preset-row{display:flex;align-items:center;gap:4px}
+.preset-pick{flex:1;min-width:0;display:flex;align-items:center;gap:8px;text-align:left;border:0;background:none;color:var(--ink);font:inherit;padding:10px 8px;border-radius:8px;cursor:pointer}
+.preset-pick:hover{background:var(--hover)}
+.preset-pick.full{width:100%;margin-bottom:6px;font-weight:600}
+.preset-pick .preset-dot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--c)}
+.preset-pick small{display:block;color:var(--muted);font:500 12px/1.3 var(--font-ui)}
+.preset-fav{flex:none;color:var(--muted)}
+.preset-fav.on{color:var(--accent)}
 
 .completed-wrap{flex:none;display:flex;flex-direction:column;gap:6px;margin-top:4px}
 .completed-cards{display:flex;flex-direction:column;gap:6px}
@@ -948,7 +961,21 @@ const PRIORITY = [null, {name: 'Low', c: 'sky'}, {name: 'Medium', c: 'mustard'},
 const dueAt = k => k.due ? parseISO(k.due) + (k.dueTime ? (+k.dueTime.slice(0, 2) * 60 + +k.dueTime.slice(3)) * 6e4 : 864e5 - 1) : Infinity;
 /* preset divider labels offered by the "Add divider" picker, plus free text */
 const DIVIDER_PRESETS = ['Today', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Someday'];
-const newDivider = label => ({id: uid(), type: 'divider', label: String(label || 'Section').slice(0, 80)});
+/* Monday-Sunday in order, index 0-6 - used both by category.resetDay (weekly auto-reset) and by
+   the weekday-named board presets below, so the two systems can't drift out of sync with
+   DIVIDER_PRESETS (grep DIVIDER_PRESETS.slice) */
+const WEEKDAY_NAMES = DIVIDER_PRESETS.slice(1, 8);
+const newDivider = (label, color = null) => ({id: uid(), type: 'divider', label: String(label || 'Section').slice(0, 80), color: LABEL_KEYS.includes(color) ? color : null, missed: false});
+/* built-in board presets (ready-made divider layouts) offered by the board-preset picker (B35 §4);
+   each is {id, name, dividers: label[]} - seeded with no color (a user can recolor dividers after
+   applying). Weekday labels reuse WEEKDAY_NAMES/DIVIDER_PRESETS verbatim. */
+const BOARD_PRESETS = [
+  {id: 'workweek', name: 'Workweek (Mon–Fri)', dividers: WEEKDAY_NAMES.slice(0, 5)},
+  {id: 'fullweek', name: 'Full week (Mon–Sun)', dividers: WEEKDAY_NAMES.slice()},
+  {id: 'weekend', name: 'Weekend (Sat–Sun)', dividers: WEEKDAY_NAMES.slice(5, 7)},
+  {id: 'triage', name: 'Triage (Today / Tomorrow / This week / Later)', dividers: ['Today', 'Tomorrow', 'This week', 'Later']},
+  {id: 'timeofday', name: 'Time of day (Morning / Afternoon / Evening)', dividers: ['Morning', 'Afternoon', 'Evening']}
+];
 /* order a run of cards is shown in within one segment of a board (between two dividers): pinned
    first, then the board's sort rule (manual keeps the dragged/stored order) */
 function orderedSegment(c, cards) {
@@ -1112,14 +1139,41 @@ function normalize(s) {
     delete c.lists;
     c.seq = Array.isArray(c.seq) ? c.seq : [];
     c.seq.forEach(it => {
-      if (it && it.type === 'divider') { it.id = it.id || uid(); it.label = String(it.label || 'Section').slice(0, 80); }
+      if (it && it.type === 'divider') {
+        it.id = it.id || uid(); it.label = String(it.label || 'Section').slice(0, 80);
+        it.color = LABEL_KEYS.includes(it.color) ? it.color : null;
+        it.missed = !!it.missed;
+      }
       else normCard(it, legacyTag, legacyNames);
     });
     c.sort = ['manual', 'priority', 'due'].includes(c.sort) ? c.sort : 'manual';
     c.hideDone = c.hideDone === true || c.hideDone === false ? c.hideDone : null;
     delete c.doneMode;
+    /* B35: per-board weekly auto-reset (none, or Monday-Sunday as an index into WEEKDAY_NAMES,
+       0=Monday..6=Sunday - see checkWeeklyResets()); lastResetAt is the ISO date (dayKey) the
+       reset last actually fired on, so it can run at most once per calendar day/week */
+    c.resetDay = Number.isInteger(c.resetDay) && c.resetDay >= 0 && c.resetDay <= 6 ? c.resetDay : null;
+    c.carryForward = !!c.carryForward;
+    c.lastResetAt = /^\d{4}-\d{2}-\d{2}$/.test(c.lastResetAt || '') ? c.lastResetAt : '';
   });
   if (!s.categories.some(c => c.id === s.active)) s.active = s.categories[0].id;
+  /* B35: user-created divider/board presets and starred state for both preset systems (built-in
+     and custom) - see allDividerPresets()/allBoardPresets(). Favorite state for built-ins is kept
+     in a small synced map keyed by a stable id (the preset's label for dividers, its BOARD_PRESETS
+     id for boards) rather than stored on the (not persisted) built-in list itself. */
+  s.dividerPresets = Array.isArray(s.dividerPresets)
+    ? s.dividerPresets.filter(p => p && p.id && p.label).map(p => ({id: p.id, label: String(p.label).slice(0, 80), color: LABEL_KEYS.includes(p.color) ? p.color : null, favorite: !!p.favorite}))
+    : [];
+  s.boardPresets = Array.isArray(s.boardPresets)
+    ? s.boardPresets.filter(p => p && p.id && p.name && Array.isArray(p.dividers)).map(p => ({
+        id: p.id, name: String(p.name).slice(0, 60),
+        dividers: p.dividers.map(d => typeof d === 'string' ? {label: String(d).slice(0, 80), color: null} : {label: String((d && d.label) || 'Section').slice(0, 80), color: LABEL_KEYS.includes(d && d.color) ? d.color : null}).filter(d => d.label),
+        favorite: !!p.favorite
+      })).filter(p => p.dividers.length)
+    : [];
+  const strMap = v => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).filter(([k, x]) => typeof k === 'string' && x)) : {};
+  s.dividerPresetFav = strMap(s.dividerPresetFav);
+  s.boardPresetFav = strMap(s.boardPresetFav);
   return s;
 }
 
@@ -1616,9 +1670,23 @@ function cardHTML(c, k, r) {
 function dividerHTML(d) {
   const title = ui.renamingDivider === d.id
     ? `<input id="rename-divider-input" class="divider-label-input" data-rename="${d.id}" value="${esc(d.label)}" maxlength="80" enterkeyhint="done" autocomplete="off" aria-label="Divider label">`
-    : `<button type="button" class="divider-label" data-action="rename-divider" data-divider="${d.id}" title="Rename">${esc(d.label)}</button>`;
-  return `<div class="divider" data-divider="${d.id}" data-drag="divider">${title}`
+    : `<button type="button" class="divider-label" data-action="rename-divider" data-divider="${d.id}" title="Rename">${d.color ? `<span class="divider-dot"></span>` : ''}${esc(d.label)}</button>`;
+  return `<div class="divider${d.color ? ' has-color' : ''}" data-divider="${d.id}" data-drag="divider"${d.color ? ` style="--c:var(--l-${d.color})"` : ''}>${title}`
+    + `<button type="button" class="icon-btn sm" data-action="divider-menu" data-divider="${d.id}" aria-label="“${esc(d.label)}” options">${icon('dotsV')}</button>`
     + `<button type="button" class="icon-btn sm divider-del" data-action="delete-divider" data-divider="${d.id}" aria-label="Delete “${esc(d.label)}”">${icon('x')}</button></div>`;
+}
+/* the composer form itself (shared by the board's generic bottom "Add card" and a per-divider
+   "+ Add task" - which one is active is tracked by ui.composer.dividerId, see addFromComposer) */
+function composerHTML() {
+  return `<div class="composer"><textarea id="composer-input" rows="2" placeholder="What needs doing?" aria-label="New card title">${esc(ui.composer.text)}</textarea>`
+    + `<div class="composer-row"><button type="button" class="btn primary" data-action="composer-add">Add card</button>`
+    + `<button type="button" class="icon-btn" data-action="composer-close" aria-label="Stop adding cards">${icon('x')}</button></div></div>`;
+}
+/* the little control at the end of one divider's section: either its own "+ Add task" button, or -
+   while that section's composer is open - the composer form itself (B35 §1) */
+function segFootHTML(dividerId) {
+  if (ui.composer && ui.composer.dividerId === dividerId) return composerHTML();
+  return `<button type="button" class="add-card seg-add" data-action="add-card-to" data-divider="${dividerId}">${icon('plus')}<span>Add task</span></button>`;
 }
 
 /* single column per board: one ordered sequence of cards and dividers, sorted within each
@@ -1626,25 +1694,28 @@ function dividerHTML(d) {
    cards never render in their stored position - they all sink to one fixed Completed section at
    the very bottom, most-recently-finished first (see HANDOFF §3) */
 function boardSeqHTML(c, r) {
-  const notDone = [], doneCards = [];
-  let seg = [];
-  const flushSeg = () => { notDone.push(...orderedSegment(c, seg)); seg = []; };
+  const doneCards = [];
+  let seg = [], curDivider = null;
+  const parts = [];
+  const flushSeg = () => {
+    parts.push(orderedSegment(c, seg).map(it => cardHTML(c, it, r)).join(''));
+    if (curDivider) parts.push(segFootHTML(curDivider));
+    seg = [];
+  };
   c.seq.forEach(it => {
-    if (it.type === 'divider') { flushSeg(); notDone.push(it); return; }
+    if (it.type === 'divider') { flushSeg(); parts.push(dividerHTML(it)); curDivider = it.id; return; }
     if (it.done) { doneCards.push(it); return; }
     seg.push(it);
   });
   flushSeg();
   doneCards.sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
   const hideThis = hideDoneOf(c);
-  const composing = !!ui.composer;
+  const composing = !!ui.composer && !ui.composer.dividerId;
   const foot = composing
-    ? `<div class="composer"><textarea id="composer-input" rows="2" placeholder="What needs doing?" aria-label="New card title">${esc(ui.composer.text)}</textarea>`
-      + `<div class="composer-row"><button type="button" class="btn primary" data-action="composer-add">Add card</button>`
-      + `<button type="button" class="icon-btn" data-action="composer-close" aria-label="Stop adding cards">${icon('x')}</button></div></div>`
+    ? composerHTML()
     : `<footer class="board-foot"><button type="button" class="add-card" data-action="add-card">${icon('plus')}<span>Add card</span></button>`
       + `<button type="button" class="add-card" data-action="add-divider">${icon('plus')}<span>Add divider</span></button></footer>`;
-  const main = notDone.map(it => it.type === 'divider' ? dividerHTML(it) : cardHTML(c, it, r)).join('') + foot;
+  const main = parts.join('') + foot;
   if (!doneCards.length) return main;
   if (hideThis) return main + `<p class="hidden-note" style="padding:2px 6px">${doneCards.length} done hidden</p>`;
   return main + `<div class="completed-wrap"><div class="divider is-done-header"><span class="divider-label">Completed<span class="divider-count">${doneCards.length}</span></span></div>`
@@ -1716,7 +1787,7 @@ function tick() {
   }
 }
 setInterval(tick, 1000);
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { tick(); fsPull(); pushSyncSoon(); } });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { tick(); fsPull(); pushSyncSoon(); checkWeeklyResets(); } });
 
 /* ================= actions ================= */
 function addFromComposer() {
@@ -1731,15 +1802,24 @@ function addFromComposer() {
      read the same un-cleared value and add the same titles a second time */
   if (ta) ta.value = '';
   const c = currentCat();
-  titles.forEach(t => c.seq.push(newCard(t)));
-  ui.composer.text = ''; ui.focus = 'composer-input'; ui.scrollToEnd = true;
+  const newCards = titles.map(t => newCard(t));
+  /* B35: a composer opened from inside a specific divider's section (ui.composer.dividerId) inserts
+     right after that section's last existing item instead of always at the board's very end - the
+     board's own generic "Add card" (dividerId null/undefined) keeps appending at the end like before */
+  let insertAt = c.seq.length;
+  if (ui.composer.dividerId) {
+    const di = c.seq.findIndex(it => it.type === 'divider' && it.id === ui.composer.dividerId);
+    if (di > -1) { insertAt = di + 1; while (insertAt < c.seq.length && c.seq[insertAt].type !== 'divider') insertAt++; }
+  }
+  c.seq.splice(insertAt, 0, ...newCards);
+  ui.composer.text = ''; ui.focus = 'composer-input'; ui.scrollToEnd = !ui.composer.dividerId;
   commit();
 }
 /* inserts a new divider at the end of the board's sequence (before its Completed section, which
    isn't part of seq - see boardSeqHTML) */
-function addDivider(label) {
+function addDivider(label, color) {
   const name = String(label || '').trim(); if (!name) return;
-  currentCat().seq.push(newDivider(name));
+  currentCat().seq.push(newDivider(name, color));
   haptic('success'); commit(); toast(`Added “${name}”`);
 }
 function withUndo(msg, fn) {
@@ -1748,8 +1828,121 @@ function withUndo(msg, fn) {
   fn(); commit();
   toast(msg, {action: 'Undo', onAction: () => { state = normalize(JSON.parse(snap)); commit(); }});
 }
-function startComposer() { ui.composer = {text: ''}; ui.focus = 'composer-input'; renderBoard(); }
+/* dividerId: when set, the composer opened from that divider's own "+ Add task" control (see
+   boardSeqHTML/segFootHTML); when omitted, this is the board's generic bottom "Add card" */
+function startComposer(dividerId) { ui.composer = {text: '', dividerId: dividerId || null}; ui.focus = 'composer-input'; renderBoard(); }
 function startRenameDivider(id) { ui.renamingDivider = id; ui.focus = 'rename-divider-input'; renderBoard(); }
+
+/* ================= divider & board presets (favorites + user-created, B35 §4a) ================= */
+/* combined list for a picker: built-ins (DIVIDER_PRESETS, favorite state in the small synced map
+   state.dividerPresetFav keyed by label) followed by user-created ones (state.dividerPresets[],
+   favorite state on the object itself) - favorited entries (of either kind) sort first as one group,
+   each group keeping its existing relative order */
+function allDividerPresets() {
+  const builtins = DIVIDER_PRESETS.map(label => ({key: 'b:' + label, label, color: null, favorite: !!state.dividerPresetFav[label], builtin: true}));
+  const customs = state.dividerPresets.map(p => ({key: 'c:' + p.id, id: p.id, label: p.label, color: p.color, favorite: !!p.favorite, builtin: false}));
+  const all = [...builtins, ...customs];
+  return [...all.filter(p => p.favorite), ...all.filter(p => !p.favorite)];
+}
+function toggleDividerPresetFav(item) {
+  if (item.builtin) { if (state.dividerPresetFav[item.label]) delete state.dividerPresetFav[item.label]; else state.dividerPresetFav[item.label] = true; }
+  else { const p = state.dividerPresets.find(x => x.id === item.id); if (p) p.favorite = !p.favorite; }
+  commit();
+}
+function allBoardPresets() {
+  const builtins = BOARD_PRESETS.map(p => ({key: 'b:' + p.id, bid: p.id, name: p.name, dividers: p.dividers.map(l => ({label: l, color: null})), favorite: !!state.boardPresetFav[p.id], builtin: true}));
+  const customs = state.boardPresets.map(p => ({key: 'c:' + p.id, id: p.id, name: p.name, dividers: p.dividers, favorite: !!p.favorite, builtin: false}));
+  const all = [...builtins, ...customs];
+  return [...all.filter(p => p.favorite), ...all.filter(p => !p.favorite)];
+}
+function toggleBoardPresetFav(item) {
+  if (item.builtin) { if (state.boardPresetFav[item.bid]) delete state.boardPresetFav[item.bid]; else state.boardPresetFav[item.bid] = true; }
+  else { const p = state.boardPresets.find(x => x.id === item.id); if (p) p.favorite = !p.favorite; }
+  commit();
+}
+/* seeds a brand-new (empty) board's seq[] with a preset's dividers, in order, no cards (B35 §4) */
+function applyPresetToNewBoard(c, preset) {
+  if (!preset) return;
+  preset.dividers.forEach(d => c.seq.push(newDivider(d.label, d.color)));
+}
+/* applies a preset to an EXISTING board additively/non-destructively: only dividers whose label
+   doesn't already exist anywhere on the board (case-insensitive) are appended at the end; nothing
+   pre-existing is touched or duplicated. This is a deliberate judgment call favoring no data loss
+   over a "replace the board's structure" option - see the B35 task spec and the worker report. */
+function applyPresetAdditive(c, preset) {
+  const have = new Set(c.seq.filter(it => it.type === 'divider').map(it => it.label.toLowerCase()));
+  let added = 0;
+  preset.dividers.forEach(d => {
+    if (have.has(d.label.toLowerCase())) return;
+    c.seq.push(newDivider(d.label, d.color));
+    have.add(d.label.toLowerCase());
+    added++;
+  });
+  commit();
+  toast(added ? `Added ${added} divider${added > 1 ? 's' : ''} from “${preset.name}”` : `“${preset.name}” has nothing new to add`);
+}
+/* "create from current": captures a board's existing dividers (label + order, plus color since
+   it's trivial to include) as a new reusable board preset */
+function saveBoardAsPreset(c) {
+  const dividers = c.seq.filter(it => it.type === 'divider').map(d => ({label: d.label, color: d.color || null}));
+  if (!dividers.length) { toast('This board has no dividers to save yet'); return; }
+  promptSheet({title: 'Save as preset', placeholder: 'Preset name', confirm: 'Save', onSave: name => {
+    state.boardPresets.push({id: uid(), name, dividers, favorite: false});
+    commit(); toast(`Saved “${name}” as a board preset`);
+  }});
+}
+/* "create from current" for a single divider: captures its label + color as a new divider preset;
+   no separate naming step - the picker shows a divider preset by its label, same as the built-ins */
+function saveDividerAsPreset(d) {
+  state.dividerPresets.push({id: uid(), label: d.label, color: d.color || null, favorite: false});
+  commit(); toast(`Saved “${d.label}” as a divider preset`);
+}
+
+/* ================= per-board weekly auto-reset (B35 §5) ================= */
+/* checked at boot and on visibilitychange (same pattern as the rest of this file's day-rollover
+   logic - the repeat engine and the reminder scheduler); a module-level re-entrancy guard keeps
+   boot and a visibilitychange firing back-to-back from ever running this twice at once, and
+   lastResetAt (set to today's date the moment a board actually resets) keeps any one board from
+   firing more than once per day - since a board only fires on its own chosen weekday, that also
+   caps it at once per calendar week */
+let resetChecking = false;
+function checkWeeklyResets() {
+  if (resetChecking) return;
+  resetChecking = true;
+  try {
+    const todayKey = isoDay(0), wd = (new Date().getDay() + 6) % 7;
+    let changed = false;
+    state.categories.forEach(c => {
+      if (c.resetDay == null || c.resetDay !== wd || c.lastResetAt === todayKey) return;
+      performReset(c);
+      c.lastResetAt = todayKey;
+      changed = true;
+    });
+    if (changed) commit();
+  } finally { resetChecking = false; }
+}
+/* the reset itself: every done card is deleted outright; every not-done card is deleted too unless
+   carryForward is on, in which case it survives inside a single "Missed" divider pinned to the very
+   top of the board. Every other divider (user-made or from a preset) survives completely untouched
+   - only cards are ever removed here, and the only divider this function ever creates/removes is
+   that one Missed divider. A pre-existing Missed divider from an earlier reset (wherever it ended
+   up, normally the top) is found and reused/folded rather than letting them stack up: its still
+   not-done cards are swept up by the same pass as everything else, so nothing in it is lost. */
+function performReset(c) {
+  const oldMissed = c.seq.find(it => it.type === 'divider' && it.missed) || null;
+  const keep = [], leftover = [];
+  c.seq.forEach(it => {
+    if (it.type === 'divider') { if (it !== oldMissed) keep.push(it); return; }
+    if (it.done) return; /* every done card is deleted, no exceptions */
+    if (c.carryForward) leftover.push(it); /* else: not-done cards are deleted too (full clean slate) */
+  });
+  if (c.carryForward && leftover.length) {
+    const missed = oldMissed || Object.assign(newDivider('⚠ Missed'), {missed: true, color: 'rust'});
+    keep.unshift(missed);
+    keep.splice(1, 0, ...leftover);
+  }
+  c.seq = keep;
+}
 /* whether a board hides its own finished (sunk-to-Completed) cards: board setting wins if set, else the global setting */
 const hideDoneOf = c => c.hideDone != null ? c.hideDone : state.settings.hideDone;
 /* a repeating card that gets finished leaves a fresh copy right next to it (same board, same
@@ -1816,10 +2009,13 @@ document.addEventListener('click', e => {
       break;
     }
     case 'add-cat':
-      promptSheet({title: 'New category', placeholder: 'e.g. Garage projects', confirm: 'Create', onSave: name => {
-        const c = newCategory(name, LABEL_KEYS[state.categories.length % LABEL_KEYS.length]);
-        state.categories.push(c); state.active = c.id; commit();
-        requestAnimationFrame(() => { const t = tabsEl.querySelector(`[data-cat="${c.id}"]`); if (t) t.scrollIntoView({inline: 'nearest', block: 'nearest'}); });
+      promptSheet({title: 'New category', placeholder: 'e.g. Garage projects', confirm: 'Next', onSave: name => {
+        boardPresetSheet({allowBlank: true, title: 'Start from a layout?', onApply: preset => {
+          const c = newCategory(name, LABEL_KEYS[state.categories.length % LABEL_KEYS.length]);
+          if (preset) applyPresetToNewBoard(c, preset);
+          state.categories.push(c); state.active = c.id; commit();
+          requestAnimationFrame(() => { const t = tabsEl.querySelector(`[data-cat="${c.id}"]`); if (t) t.scrollIntoView({inline: 'nearest', block: 'nearest'}); });
+        }});
       }});
       break;
     case 'menu': appMenu(a); break;
@@ -1847,7 +2043,9 @@ document.addEventListener('click', e => {
       withUndo(`Deleted “${f.divider.label}”`, () => { f.cat.seq.splice(f.cat.seq.indexOf(f.divider), 1); });
       break;
     }
+    case 'divider-menu': dividerMenu(a, a.dataset.divider); break;
     case 'add-card': startComposer(); break;
+    case 'add-card-to': startComposer(a.dataset.divider); break;
     case 'composer-add': addFromComposer(); break;
     case 'composer-close': ui.composer = null; renderBoard(); break;
     case 'add-divider': dividerPicker(a); break;
@@ -2423,6 +2621,17 @@ function categoryMenu(anchor) {
     {label: 'Rename', icon: 'pencil', onSelect: () => promptSheet({title: 'Rename category', value: c.name, confirm: 'Save', onSave: v => { c.name = v; commit(); }})},
     {type: 'swatches', value: c.color, onPick: k => { c.color = k; commit(); }},
     {label: 'Add divider', icon: 'plus', onSelect: () => dividerPicker(anchor)},
+    {label: 'Apply board preset…', icon: 'sheet', onSelect: () => boardPresetSheet({title: `Apply a preset to “${c.name}”`, onApply: preset => { if (preset) applyPresetAdditive(c, preset); }})},
+    {label: 'Save as preset…', icon: 'download', onSelect: () => saveBoardAsPreset(c)},
+    {label: 'Weekly reset', hint: c.resetDay == null ? 'Off' : `${WEEKDAY_NAMES[c.resetDay]}${c.carryForward ? ' · carry forward' : ''}`, icon: 'reset', onSelect: () => openMenu(anchor, [
+      {type: 'title', label: `Weekly reset for “${c.name}”`},
+      {label: 'Off', checked: c.resetDay == null, onSelect: () => { c.resetDay = null; commit(); }},
+      ...WEEKDAY_NAMES.map((name, idx) => ({label: name, checked: c.resetDay === idx, onSelect: () => { c.resetDay = idx; commit(); }})),
+      {type: 'sep'},
+      {label: 'Carry unfinished forward', toggle: true, checked: !!c.carryForward, onSelect: () => { c.carryForward = !c.carryForward; commit(); }},
+      {type: 'sep'},
+      {type: 'title', label: 'Done cards are always cleared. Not-done cards are kept in a "⚠ Missed" divider at the top when carry-forward is on, or cleared too when it is off.'}
+    ])},
     {label: 'Paste card', hint: clipboardCard ? `“${clipboardCard.title}”` : 'Nothing copied yet', icon: 'download', disabled: !clipboardCard, onSelect: () => pasteClipboardInto(c.id)},
     {label: 'Job for time tracking', hint: job ? job.name : 'None', icon: 'briefcase', onSelect: () => openMenu(anchor, [
       {type: 'title', label: `Time in ${c.name} counts toward`},
@@ -2453,15 +2662,119 @@ function categoryMenu(anchor) {
   ]);
 }
 
-/* "Add divider" picker: a preset weekday/section name, or a free-text custom label. Either way
-   it's appended at the end of the open board's sequence (see addDivider). */
+/* "Add divider" picker: built-in + user-created presets (favorites first, star to toggle), a
+   one-off "Custom label…" (as before B35), or "New preset…" which does the same custom-label entry
+   but saves it as a permanent, reusable preset (B35 §4a). Either way the divider is appended at the
+   end of the open board's sequence (see addDivider). */
 function dividerPicker(anchor) {
+  dividerPresetSheet(({label, color}) => addDivider(label, color));
+}
+function dividerPresetSheet(onPick) {
+  openSheet((inner, close) => {
+    const draw = () => {
+      const items = allDividerPresets();
+      inner.innerHTML = `<h2 class="sheet-title sheet-drag">Add divider</h2>`
+        + `<div class="preset-list">` + items.map(it => `<div class="preset-row">`
+          + `<button type="button" class="preset-pick" data-pick="${it.key}"${it.color ? ` style="--c:var(--l-${it.color})"` : ''}>${it.color ? `<span class="preset-dot"></span>` : ''}<span class="grow">${esc(it.label)}</span></button>`
+          + `<button type="button" class="icon-btn sm preset-fav${it.favorite ? ' on' : ''}" data-fav="${it.key}" aria-label="${it.favorite ? 'Unfavorite' : 'Favorite'} “${esc(it.label)}”">${icon(it.favorite ? 'starFill' : 'star')}</button>`
+          + `</div>`).join('') + `</div>`
+        + `<div class="sheet-actions"><button type="button" class="btn" data-x="custom">${icon('pencil')}Custom label…</button><button type="button" class="btn" data-x="newpreset">${icon('plus')}New preset…</button></div>`;
+    };
+    draw();
+    inner.addEventListener('click', e => {
+      const fav = e.target.closest('[data-fav]');
+      if (fav) { const it = allDividerPresets().find(x => x.key === fav.dataset.fav); if (it) toggleDividerPresetFav(it); draw(); return; }
+      const pick = e.target.closest('[data-pick]');
+      if (pick) { const it = allDividerPresets().find(x => x.key === pick.dataset.pick); close(); if (it) onPick({label: it.label, color: it.color}); return; }
+      const x = e.target.closest('[data-x]'); if (!x) return;
+      if (x.dataset.x === 'custom') { close(); promptSheet({title: 'New divider', placeholder: 'e.g. Waiting on', confirm: 'Add', onSave: label => onPick({label, color: null})}); }
+      else if (x.dataset.x === 'newpreset') { close(); newDividerPresetFlow(onPick); }
+    });
+  }, {cls: 'tall'});
+}
+/* "New preset…": same custom-label entry as "Custom label…", plus the B35 §3 color picker, but the
+   result is saved as a permanent divider preset (and also applied to the board right now, same as
+   picking any other preset) */
+function newDividerPresetFlow(onPick) {
+  promptSheet({title: 'New preset', placeholder: 'e.g. Waiting on', confirm: 'Next', onSave: label => {
+    openMenu(null, [
+      {type: 'title', label: `Color for “${label}” (optional)`},
+      {label: 'No color', icon: 'x', onSelect: () => { const p = {id: uid(), label, color: null, favorite: false}; state.dividerPresets.push(p); commit(); toast(`Saved “${label}” as a preset`); onPick({label, color: null}); }},
+      {type: 'swatches', value: null, onPick: k => { const p = {id: uid(), label, color: k, favorite: false}; state.dividerPresets.push(p); commit(); toast(`Saved “${label}” as a preset`); onPick({label, color: k}); }}
+    ]);
+  }});
+}
+/* divider's own options menu (color, save-as-preset, delete) - rename stays a tap on the label as
+   before B35; this adds the controls §3/§4a need without disturbing that */
+function dividerMenu(anchor, id) {
+  const f = findDivider(id); if (!f) return;
+  const d = f.divider;
   openMenu(anchor, [
-    {type: 'title', label: 'Add divider'},
-    ...DIVIDER_PRESETS.map(label => ({label, icon: 'blank', onSelect: () => addDivider(label)})),
+    {type: 'title', label: d.label},
+    {label: 'Rename', icon: 'pencil', onSelect: () => startRenameDivider(d.id)},
+    {label: 'No color', icon: 'x', checked: !d.color, onSelect: () => { d.color = null; commit(); }},
+    {type: 'swatches', value: d.color, onPick: k => { d.color = k; commit(); }},
     {type: 'sep'},
-    {label: 'Custom label…', icon: 'pencil', onSelect: () => promptSheet({title: 'New divider', placeholder: 'e.g. Waiting on', confirm: 'Add', onSave: addDivider})}
+    {label: 'Save as preset…', icon: 'download', onSelect: () => saveDividerAsPreset(d)},
+    {type: 'sep'},
+    {label: 'Delete', icon: 'trash', danger: true, onSelect: () => withUndo(`Deleted “${d.label}”`, () => { f.cat.seq.splice(f.cat.seq.indexOf(d), 1); })}
   ]);
+}
+/* board-preset picker, shared by new-board creation (allowBlank) and the board's own "Apply board
+   preset…" menu item; onApply(preset|null) - null means "start blank" */
+function boardPresetSheet({allowBlank = false, onApply, title = 'Board layout'} = {}) {
+  openSheet((inner, close) => {
+    const draw = () => {
+      const items = allBoardPresets();
+      inner.innerHTML = `<h2 class="sheet-title sheet-drag">${esc(title)}</h2>`
+        + (allowBlank ? `<button type="button" class="preset-pick full" data-pick="__blank">${icon('blank')}<span class="grow">Start blank</span></button>` : '')
+        + `<div class="preset-list">` + items.map(it => `<div class="preset-row">`
+          + `<button type="button" class="preset-pick" data-pick="${it.key}"><span class="grow">${esc(it.name)}<small>${it.dividers.map(d => esc(d.label)).join(', ')}</small></span></button>`
+          + `<button type="button" class="icon-btn sm preset-fav${it.favorite ? ' on' : ''}" data-fav="${it.key}" aria-label="${it.favorite ? 'Unfavorite' : 'Favorite'} “${esc(it.name)}”">${icon(it.favorite ? 'starFill' : 'star')}</button>`
+          + `</div>`).join('') + `</div>`
+        + `<div class="sheet-actions"><button type="button" class="btn" data-x="newpreset">${icon('plus')}New preset…</button></div>`;
+    };
+    draw();
+    inner.addEventListener('click', e => {
+      const fav = e.target.closest('[data-fav]');
+      if (fav) { const it = allBoardPresets().find(x => x.key === fav.dataset.fav); if (it) toggleBoardPresetFav(it); draw(); return; }
+      const pick = e.target.closest('[data-pick]');
+      if (pick) {
+        close();
+        if (pick.dataset.pick === '__blank') { onApply(null); return; }
+        const it = allBoardPresets().find(x => x.key === pick.dataset.pick);
+        if (it) onApply(it);
+        return;
+      }
+      const x = e.target.closest('[data-x]'); if (!x) return;
+      if (x.dataset.x === 'newpreset') { close(); newBoardPresetFlow(onApply); }
+    });
+  }, {cls: 'tall'});
+}
+/* "New preset…" for board presets: name it, add one or more divider labels (plain text, one per
+   line - same simple pattern this file already uses for the composer's "one card per line") */
+function newBoardPresetFlow(onApply) {
+  openSheet((inner, close) => {
+    inner.innerHTML = `<form novalidate><h2 class="sheet-title sheet-drag">New board preset</h2>`
+      + `<input id="bp-name" class="field" placeholder="Preset name" maxlength="60" autocomplete="off" enterkeyhint="next">`
+      + `<label class="lbl" for="bp-dividers" style="display:block;margin:10px 0 4px">Dividers (one per line)</label>`
+      + `<textarea id="bp-dividers" class="field area" rows="5" placeholder="Monday&#10;Tuesday&#10;…"></textarea>`
+      + `<div class="sheet-actions"><button type="button" class="btn" data-x="cancel">Cancel</button><button type="submit" class="btn primary">Save</button></div></form>`;
+    inner.querySelector('[data-x="cancel"]').addEventListener('click', close);
+    inner.querySelector('#bp-name').focus({preventScroll: true});
+    inner.querySelector('form').addEventListener('submit', e => {
+      e.preventDefault();
+      const name = inner.querySelector('#bp-name').value.trim();
+      const labels = inner.querySelector('#bp-dividers').value.split('\n').map(s => s.trim()).filter(Boolean);
+      if (!name || !labels.length) return;
+      const dividers = labels.map(l => ({label: l, color: null}));
+      const p = {id: uid(), name, dividers, favorite: false};
+      state.boardPresets.push(p); commit();
+      toast(`Saved “${name}” as a board preset`);
+      close();
+      if (onApply) onApply(p);
+    });
+  }, {cls: 'compact'});
 }
 
 /* one top-bar icon for the four feature entry points (assistant, notes, focus/work, calendar),
@@ -4850,6 +5163,7 @@ render();
 /* notifications on/off became per device: keep this device's earlier choice */
 try { if (localStorage.getItem('docket.notify') === null) devNotify(!!state.settings.notify); } catch (e) {}
 scheduleLocal();
+checkWeeklyResets();
 /* read-only hook for diagnostics and automated checks */
 window.docketDebug = {
   reminderItems: () => reminderItems(), health: () => notifHealth(),
@@ -4860,7 +5174,13 @@ window.docketDebug = {
     if (!f || !destCat || !moveCardToCategory(f.card, f.cat, destCat)) return null;
     save(); render();
     return destCat.id;
-  }
+  },
+  /* test-only (B35): today's weekday index matching category.resetDay (0=Monday..6=Sunday), and a
+     way to run the same boot/visibilitychange weekly-reset check on demand - tests set a category's
+     resetDay to this value (and lastResetAt to '' to force it, or to today to prove it won't
+     double-fire) then call this instead of mocking Date, see tests/smoke22.js */
+  weekdayToday: () => (new Date().getDay() + 6) % 7,
+  checkWeeklyResets: () => { checkWeeklyResets(); return state.categories.map(c => ({id: c.id, lastResetAt: c.lastResetAt})); }
 };
 const activeTab = tabsEl.querySelector('.tab.is-active'); if (activeTab) activeTab.scrollIntoView({inline: 'nearest', block: 'nearest'});
 if (pr().endsAt) tick();
