@@ -95,22 +95,25 @@ button{-webkit-tap-highlight-color:transparent}
 .tab-work .live-dot{width:7px;height:7px;align-self:flex-start;margin-top:12px}
 .tab-sep{flex:none;width:1px;height:22px;margin:0 4px;background:var(--line-strong)}
 
-/* ---------- board ---------- */
-.board{flex:1;min-height:0;display:flex;align-items:flex-start;gap:12px;overflow-x:auto;overflow-y:hidden;position:relative;padding:8px 16px calc(14px + env(safe-area-inset-bottom,0px));scroll-snap-type:x proximity;scroll-padding-inline:16px;overscroll-behavior-x:contain;scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent}
+/* ---------- board (single column per board: dividers + cards, top to bottom) ---------- */
+.board{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;overflow-y:auto;overflow-x:hidden;position:relative;padding:8px 16px calc(14px + env(safe-area-inset-bottom,0px));overscroll-behavior-y:contain;scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent}
 html.has-dock .board{padding-bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset-bottom,0px))}
-.board-end{flex:0 0 4px;height:1px}
-html.dragging .board,html.dragging .tabs{scroll-snap-type:none}
+html.dragging .tabs{scroll-snap-type:none}
 html.dragging,html.dragging *{cursor:grabbing!important}
 
-.list{flex:0 0 var(--col-w);width:var(--col-w);max-height:100%;display:flex;flex-direction:column;background:var(--col);border-radius:var(--r-col);scroll-snap-align:start;position:relative;box-shadow:var(--col-shadow);-webkit-backdrop-filter:var(--col-blur);backdrop-filter:var(--col-blur)}
-.list-head{flex:none;display:flex;align-items:center;gap:0;min-height:54px;padding:6px 4px 2px 6px;cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-.list-title{flex:1;min-width:0;text-align:left;text-transform:var(--title-tt);border:0;background:none;padding:7px 8px;border-radius:8px;color:var(--ink);font:650 17px/1.2 var(--font-display);letter-spacing:-.015em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
-.list-title:hover{background:var(--hover)}
-.list-title-input{flex:1;min-width:0;border:0;outline:none;border-radius:8px;padding:7px 8px;background:var(--card);box-shadow:0 0 0 2px var(--accent);font:650 17px/1.2 var(--font-display);letter-spacing:-.015em;color:var(--ink)}
-.list-count{flex:none;font:500 12px/1 var(--font-mono);color:var(--muted);padding:0 6px;font-variant-numeric:tabular-nums}
-.list-head.is-pressing,.list.is-pressing .collapsed-body{background:var(--hover);border-radius:12px}
+.divider{flex:none;display:flex;align-items:center;gap:0;min-height:40px;padding:10px 4px 2px 2px;cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.divider.is-done-header{cursor:default;padding-top:18px}
+.divider-label{flex:1;min-width:0;text-align:left;text-transform:var(--title-tt);border:0;background:none;padding:7px 8px;border-radius:8px;color:var(--muted);font:650 13px/1.2 var(--font-mono);letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.divider-label:hover{background:var(--hover);color:var(--ink)}
+.divider.is-done-header .divider-label{cursor:default}
+.divider.is-done-header .divider-label:hover{background:none}
+.divider-label-input{flex:1;min-width:0;border:0;outline:none;border-radius:8px;padding:7px 8px;background:var(--card);box-shadow:0 0 0 2px var(--accent);font:650 13px/1.2 var(--font-mono);letter-spacing:.04em;text-transform:uppercase;color:var(--ink)}
+.divider-count{flex:none;font:500 12px/1 var(--font-mono);color:var(--muted);padding:0 6px;font-variant-numeric:tabular-nums}
+.divider.is-pressing{background:var(--hover);border-radius:12px}
+.divider-del{flex:none}
 
-.cards{flex:0 1 auto;min-height:8px;overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;display:flex;flex-direction:column;gap:6px;padding:2px 8px 6px;position:relative;scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent}
+.completed-wrap{flex:none;display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.completed-cards{display:flex;flex-direction:column;gap:6px}
 
 .card{flex:none;position:relative;display:flex;flex-direction:column;gap:7px;padding:10px 12px 11px 8px;background:var(--card);border-radius:var(--r-card);box-shadow:var(--shadow-card);cursor:grab;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transition:transform .16s ease,box-shadow .16s ease}
 .card:focus-visible{outline:none;box-shadow:var(--shadow-card),0 0 0 2px var(--accent)}
@@ -141,29 +144,16 @@ html.dragging,html.dragging *{cursor:grabbing!important}
 .check.big{width:34px;height:34px;margin:0}
 .check.big .ic{width:16px;height:16px}
 
-/* collapsed columns */
-.list.is-collapsed{flex-basis:52px;width:52px}
-.list.is-collapsed .cards{display:none}
-.collapsed-body{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;padding:16px 0 18px;border:0;border-radius:var(--r-col);background:none;color:var(--ink);cursor:pointer;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-.collapsed-body:hover{background:var(--hover)}
-.collapsed-body .ic{color:var(--muted)}
-.v-title{writing-mode:vertical-rl;text-transform:var(--title-tt);font:650 17px/1 var(--font-display);letter-spacing:-.01em;white-space:nowrap;max-height:56vh;overflow:hidden;text-overflow:ellipsis}
-.list.is-collapsed.is-drop{background:var(--accent-soft);box-shadow:inset 0 0 0 2px var(--accent)}
-
-.list-foot{flex:none;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:2px 6px 8px}
+.board-foot{flex:none;display:flex;align-items:center;justify-content:flex-start;gap:6px;padding:8px 6px 16px;flex-wrap:wrap}
 .add-card{display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 12px 0 8px;border:0;border-radius:9px;background:none;color:var(--muted);font:500 14.5px/1 var(--font-ui);cursor:pointer}
 .add-card:hover{background:var(--hover);color:var(--ink)}
 .hidden-note{border:0;background:none;color:var(--muted);font:500 11.5px/1 var(--font-mono);padding:8px;border-radius:8px;cursor:pointer}
 .hidden-note:hover{color:var(--ink)}
 
 .composer{flex:none;display:flex;flex-direction:column;gap:8px;padding:4px 8px 8px}
-.composer textarea,.add-list input{width:100%;resize:none;border:0;outline:none;border-radius:var(--r-card);background:var(--card);box-shadow:var(--shadow-card),0 0 0 2px var(--accent);padding:10px 12px;color:var(--ink);font:16px/1.35 var(--font-ui)}
+.composer textarea{width:100%;resize:none;border:0;outline:none;border-radius:var(--r-card);background:var(--card);box-shadow:var(--shadow-card),0 0 0 2px var(--accent);padding:10px 12px;color:var(--ink);font:16px/1.35 var(--font-ui)}
 .composer textarea{min-height:66px}
 .composer-row{display:flex;align-items:center;gap:6px}
-
-.add-list{flex:0 0 var(--col-w);width:var(--col-w);display:flex;align-items:center;gap:6px;height:54px;padding:0 14px;border:1.5px dashed var(--line-strong);border-radius:var(--r-col);background:none;color:var(--muted);font:600 15px/1 var(--font-ui);cursor:pointer;scroll-snap-align:start}
-.add-list:hover{color:var(--ink);border-color:var(--muted-2)}
-.add-list.is-open{height:auto;flex-direction:column;align-items:stretch;gap:8px;padding:8px;border:0;background:var(--col);cursor:default}
 
 /* drag states */
 .is-placeholder{background:transparent!important;box-shadow:none!important;outline:1.5px dashed var(--line-strong);outline-offset:-1.5px;transform:none!important}
@@ -567,8 +557,9 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 .tn{padding:0 4px 2px;font:600 14px/1.2 var(--font-ui)}
 
 @media (min-width:900px) and (hover:hover) and (pointer:fine){
-  :root{--col-w:290px}
-  .board{padding-inline:20px;scroll-padding-inline:20px;scroll-snap-type:none}
+  /* a single column reads better capped and centered on a wide desktop window than stretched edge to edge */
+  .board{padding-inline:20px;align-items:center}
+  .board>.card,.board>.divider,.board-foot,.completed-wrap{width:100%;max-width:640px}
 }
 @media (min-width:900px) and (hover:hover) and (pointer:fine){
   .sheet{top:5vh;max-height:90vh}
@@ -955,52 +946,60 @@ function nextRepeat(rule, from, until) {
 }
 const PRIORITY = [null, {name: 'Low', c: 'sky'}, {name: 'Medium', c: 'mustard'}, {name: 'High', c: 'rust'}, {name: 'Urgent', c: 'rose'}];
 const dueAt = k => k.due ? parseISO(k.due) + (k.dueTime ? (+k.dueTime.slice(0, 2) * 60 + +k.dueTime.slice(3)) * 6e4 : 864e5 - 1) : Infinity;
-/* order a column is shown in: pinned first, then the column's sort rule (manual keeps the dragged order) */
-function orderedCards(l, list) {
-  const idx = new Map(l.cards.map((k, i) => [k.id, i]));
-  return list.slice().sort((a, b) => (b.pinned - a.pinned)
-    || (l.sort === 'priority' ? (b.priority - a.priority) || (dueAt(a) - dueAt(b)) : l.sort === 'due' ? (dueAt(a) - dueAt(b)) || (b.priority - a.priority) : 0)
+/* preset divider labels offered by the "Add divider" picker, plus free text */
+const DIVIDER_PRESETS = ['Today', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Someday'];
+const newDivider = label => ({id: uid(), type: 'divider', label: String(label || 'Section').slice(0, 80)});
+/* order a run of cards is shown in within one segment of a board (between two dividers): pinned
+   first, then the board's sort rule (manual keeps the dragged/stored order) */
+function orderedSegment(c, cards) {
+  const idx = new Map(cards.map((k, i) => [k.id, i]));
+  return cards.slice().sort((a, b) => (b.pinned - a.pinned)
+    || (c.sort === 'priority' ? (b.priority - a.priority) || (dueAt(a) - dueAt(b)) : c.sort === 'due' ? (dueAt(a) - dueAt(b)) || (b.priority - a.priority) : 0)
     || idx.get(a.id) - idx.get(b.id));
 }
 /* deep copy with fresh ids (cards keep their content; time entries stay with the original) */
-const cloneCard = k => ({...JSON.parse(JSON.stringify(k)), id: uid(), created: Date.now(), checklist: k.checklist.map(i => ({...i, id: uid()})), fromList: undefined});
-const cloneList = l => ({...l, id: uid(), isDone: false, cards: l.cards.map(cloneCard)});
-const newList = (title, extra = {}) => Object.assign({id: uid(), title, collapsed: false, cards: []}, extra);
-const newCategory = (name, color) => ({id: uid(), name, color, labels: {}, lists: [newList('To do'), newList('Doing'), newList('Done')]});
+const cloneCard = k => { const cp = {...JSON.parse(JSON.stringify(k)), id: uid(), created: Date.now(), checklist: k.checklist.map(i => ({...i, id: uid()}))}; delete cp.doneAt; return cp; };
+/* cards and dividers interleaved in one ordered sequence per board (see HANDOFF §3) */
+const newCategory = (name, color) => ({id: uid(), name, color, seq: []});
+/* every card on a board, in stored (not visual) order, dividers excluded */
+const catCards = c => c.seq.filter(it => it.type !== 'divider');
 const POMO_DEFAULTS = {work: 25, short: 5, long: 15, every: 4, autoNext: false, sound: true};
 const POMO_IDLE = {phase: 'idle', endsAt: null, left: null, round: 0, cardId: null, jobId: null, entryId: null};
 
+/* legacy pre-B33 shape (lists[] of cards), used only here so seed data is exercised through the
+   same lists->dividers migration path as a real upgrading user (see normalize()) */
+const legacyList = (title, extra = {}) => Object.assign({id: uid(), title, collapsed: false, cards: []}, extra);
 function seed() {
   const ck = (text, done = false) => ({id: uid(), text, done});
   const office = {id: uid(), name: 'Office', color: 'ultra', rate: 0, currency: ''};
   const freelance = {id: uid(), name: 'Freelance', color: 'orchid', rate: 450, currency: 'CZK'};
   const invoice = newCard('Fix invoice export', {labels: ['mustard'], due: isoDay(-1), desc: 'Totals are rounded twice when VAT is 0%.'});
   const home = {id: uid(), name: 'Home', color: 'moss', labels: {moss: 'Garden', rust: 'Urgent', ultra: 'Errand'}, lists: [
-    newList('This week', {cards: [
+    legacyList('This week', {cards: [
       newCard('Book boiler service', {labels: ['rust'], due: isoDay(1)}),
       newCard('Pick up dry cleaning', {labels: ['ultra']}),
       newCard('Repot the monstera', {labels: ['moss'], checklist: [ck('Buy a 24 cm pot', true), ck('Get bark mix'), ck('Repot and water')]})
     ]}),
-    newList('Later', {cards: [
+    legacyList('Later', {cards: [
       newCard('Fix squeaky bedroom door'),
       newCard('Sort out bike storage', {desc: 'Wall hooks or a ceiling hoist? Measure the hallway first.'})
     ]}),
-    newList('Done', {collapsed: true, cards: [newCard('Renew parking permit', {done: true}), newCard('Return library books', {done: true})]})
+    legacyList('Done', {isDone: true, cards: [newCard('Renew parking permit', {done: true}), newCard('Return library books', {done: true})]})
   ]};
   const work = {id: uid(), name: 'Work', color: 'ultra', jobId: office.id, labels: {ultra: 'Design', orchid: 'Review', mustard: 'Blocked'}, lists: [
-    newList('Inbox', {cards: [
+    legacyList('Inbox', {cards: [
       newCard('Reply to supplier about lead times'),
       newCard('Quarterly report outline', {labels: ['ultra'], due: isoDay(4)})
     ]}),
-    newList('In progress', {cards: [
+    legacyList('In progress', {cards: [
       newCard('Onboarding checklist v2', {labels: ['ultra', 'orchid'], checklist: [ck('Draft', true), ck('Legal review', true), ck('Publish')]}),
       invoice
     ]}),
-    newList('Waiting on', {cards: [newCard('Laptop replacement', {desc: 'IT ticket #4471'})]})
+    legacyList('Waiting on', {cards: [newCard('Laptop replacement', {desc: 'IT ticket #4471'})]})
   ]};
   const trip = {id: uid(), name: 'Lisbon trip', color: 'rust', labels: {}, lists: [
-    newList('Before we go', {cards: [newCard('Check passport expiry', {done: true}), newCard('Book airport transfer', {due: isoDay(9)})]}),
-    newList('Packing', {cards: [newCard('Travel adapters'), newCard('Light rain jacket')]})
+    legacyList('Before we go', {cards: [newCard('Check passport expiry', {done: true}), newCard('Book airport transfer', {due: isoDay(9)})]}),
+    legacyList('Packing', {cards: [newCard('Travel adapters'), newCard('Light rain jacket')]})
   ]};
   const at = (dayOff, h, m) => { const d = new Date(); d.setDate(d.getDate() + dayOff); d.setHours(h, m, 0, 0); return d.getTime(); };
   const en = (job, dayOff, h1, m1, h2, m2, title, cardId = null) => ({id: uid(), jobId: job.id, cardId, title, start: at(dayOff, h1, m1), end: at(dayOff, h2, m2), note: ''});
@@ -1016,7 +1015,7 @@ function seed() {
 
 function normalize(s) {
   if (!s || !Array.isArray(s.categories) || !s.categories.length) throw new Error('No categories found');
-  s.version = 2;
+  s.version = 3;
   s.settings = Object.assign({hideDone: false, autoMoveDone: true, theme: 'system', notify: false, workJob: null, workPeriod: 'week'}, s.settings || {});
   s.settings.notifyPrefs = Object.assign({timer: true, due: true, events: true, dueTime: '09:00'}, s.settings.notifyPrefs || {});
   if (!/^\d{2}:\d{2}$/.test(s.settings.notifyPrefs.dueTime)) s.settings.notifyPrefs.dueTime = '09:00';
@@ -1059,38 +1058,66 @@ function normalize(s) {
     if (!t) { t = {id: uid(), name, color, group: 'Your labels'}; s.tags.push(t); tagIds.add(t.id); }
     return t.id;
   };
+  const normCard = (k, legacyTag, legacyNames) => {
+    k.id = k.id || uid(); k.title = String(k.title || 'Untitled'); k.desc = String(k.desc || '');
+    k.done = !!k.done; k.due = typeof k.due === 'string' ? k.due : '';
+    k.dueTime = /^\d{2}:\d{2}$/.test(k.dueTime || '') && k.due ? k.dueTime : '';
+    k.priority = [0, 1, 2, 3, 4].includes(k.priority) ? k.priority : 0; k.pinned = !!k.pinned; k.repeat = REPEAT_KEYS.includes(k.repeat) ? k.repeat : 'none';
+    k.tags = Array.isArray(k.tags) ? k.tags.filter(id => tagIds.has(id)) : [];
+    if (Array.isArray(k.labels)) {
+      k.labels.filter(x => LABEL_KEYS.includes(x)).forEach(x => { const id = legacyTag(String(legacyNames[x] || '').trim(), x); if (!k.tags.includes(id)) k.tags.push(id); });
+      delete k.labels;
+    }
+    /* sub-items (item.sub[]) were removed from the UI; any pre-existing synced/backed-up data
+       with a non-empty item.sub is silently dropped here rather than migrated or rendered */
+    k.checklist = Array.isArray(k.checklist) ? k.checklist.map(i => {
+      const due = /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '';
+      return {id: i.id || uid(), text: String(i.text || ''), done: !!i.done, due, dueTime: /^\d{2}:\d{2}$/.test(i.dueTime || '') && due ? i.dueTime : '', note: String(i.note || '')};
+    }) : [];
+    k.created = k.created || Date.now();
+    /* B33: lists went away, so a card's "which list" bookkeeping (fromList) has nothing left to
+       point at - position in the board's own seq[] now carries that information instead */
+    delete k.fromList;
+    if (k.done) { if (!Number.isFinite(k.doneAt)) k.doneAt = k.created; } else delete k.doneAt;
+    if (k.jobId && k.jobId !== '__none' && !jobIds.has(k.jobId)) delete k.jobId;
+    return k;
+  };
   s.categories.forEach(c => {
     c.id = c.id || uid(); c.name = String(c.name || 'Untitled');
     c.color = LABEL_KEYS.includes(c.color) ? c.color : 'ultra';
-    c.doneMode = ['move', 'leave', 'hide'].includes(c.doneMode) ? c.doneMode : '';
     const legacyNames = c.labels && typeof c.labels === 'object' ? c.labels : {};
     delete c.labels;
     if (c.jobId && !jobIds.has(c.jobId)) delete c.jobId;
-    c.lists = Array.isArray(c.lists) ? c.lists : [];
-    c.lists.forEach(l => {
-      l.id = l.id || uid(); l.title = String(l.title || 'Untitled'); l.collapsed = !!l.collapsed; l.isDone = !!l.isDone; l.sort = ['manual', 'priority', 'due'].includes(l.sort) ? l.sort : 'manual';
-      l.hideDone = l.hideDone === true || l.hideDone === false ? l.hideDone : null;
-      l.cards = Array.isArray(l.cards) ? l.cards : [];
-      l.cards.forEach(k => {
-        k.id = k.id || uid(); k.title = String(k.title || 'Untitled'); k.desc = String(k.desc || '');
-        k.done = !!k.done; k.due = typeof k.due === 'string' ? k.due : '';
-        k.dueTime = /^\d{2}:\d{2}$/.test(k.dueTime || '') && k.due ? k.dueTime : '';
-        k.priority = [0, 1, 2, 3, 4].includes(k.priority) ? k.priority : 0; k.pinned = !!k.pinned; k.repeat = REPEAT_KEYS.includes(k.repeat) ? k.repeat : 'none';
-        k.tags = Array.isArray(k.tags) ? k.tags.filter(id => tagIds.has(id)) : [];
-        if (Array.isArray(k.labels)) {
-          k.labels.filter(x => LABEL_KEYS.includes(x)).forEach(x => { const id = legacyTag(String(legacyNames[x] || '').trim(), x); if (!k.tags.includes(id)) k.tags.push(id); });
-          delete k.labels;
-        }
-        /* sub-items (item.sub[]) were removed from the UI; any pre-existing synced/backed-up data
-           with a non-empty item.sub is silently dropped here rather than migrated or rendered */
-        k.checklist = Array.isArray(k.checklist) ? k.checklist.map(i => {
-          const due = /^\d{4}-\d{2}-\d{2}$/.test(i.due || '') ? i.due : '';
-          return {id: i.id || uid(), text: String(i.text || ''), done: !!i.done, due, dueTime: /^\d{2}:\d{2}$/.test(i.dueTime || '') && due ? i.dueTime : '', note: String(i.note || '')};
-        }) : [];
-        k.created = k.created || Date.now();
-        if (k.jobId && k.jobId !== '__none' && !jobIds.has(k.jobId)) delete k.jobId;
+    const legacyTag = (name, color) => {
+      let t = name ? s.tags.find(x => x.name.toLowerCase() === name.toLowerCase()) : s.tags.find(x => !x.name && x.color === color);
+      if (!t) { t = {id: uid(), name, color, group: 'Your labels'}; s.tags.push(t); tagIds.add(t.id); }
+      return t.id;
+    };
+    /* B33 migration: a board used to be lists[] of cards; now it's one ordered seq[] of cards and
+       dividers. Each old list becomes a divider carrying its title (even the old Done list - it's
+       just a normal divider now; auto-sink handles finished cards regardless of which divider they
+       were filed under), followed by its cards in their old order. No card is dropped. */
+    if (Array.isArray(c.lists) && !Array.isArray(c.seq)) {
+      const seq = [];
+      c.lists.forEach(l => {
+        seq.push(newDivider(String(l.title || 'Untitled')));
+        (Array.isArray(l.cards) ? l.cards : []).forEach(k => seq.push(normCard(k, legacyTag, legacyNames)));
       });
+      c.seq = seq;
+      /* a list-level "always hide completed" override (there could be several, disagreeing, across
+         old lists) folds into the one board-level setting; first explicit value found wins */
+      if (c.hideDone == null) { const withPref = c.lists.find(l => l.hideDone === true || l.hideDone === false); if (withPref) c.hideDone = withPref.hideDone; }
+      if (c.doneMode === 'hide' && c.hideDone == null) c.hideDone = true;
+    }
+    delete c.lists;
+    c.seq = Array.isArray(c.seq) ? c.seq : [];
+    c.seq.forEach(it => {
+      if (it && it.type === 'divider') { it.id = it.id || uid(); it.label = String(it.label || 'Section').slice(0, 80); }
+      else normCard(it, legacyTag, legacyNames);
     });
+    c.sort = ['manual', 'priority', 'due'].includes(c.sort) ? c.sort : 'manual';
+    c.hideDone = c.hideDone === true || c.hideDone === false ? c.hideDone : null;
+    delete c.doneMode;
   });
   if (!s.categories.some(c => c.id === s.active)) s.active = s.categories[0].id;
   return s;
@@ -1121,12 +1148,20 @@ function saveLocal() {
 function save() { state.savedAt = Date.now(); saveLocal(); fsPushSoon(); ghPushSoon(); pushSyncSoon(); localSoon(); }
 
 const currentCat = () => state.categories.find(c => c.id === state.active) || state.categories[0];
-function findList(id) { for (const c of state.categories) { const l = c.lists.find(x => x.id === id); if (l) return {cat: c, list: l}; } return null; }
+/* a divider by id, anywhere */
+function findDivider(id) {
+  for (const c of state.categories) {
+    const i = c.seq.findIndex(it => it.type === 'divider' && it.id === id);
+    if (i > -1) return {cat: c, divider: c.seq[i], index: i};
+  }
+  return null;
+}
+/* a card by id, anywhere; index is its position in the board's own seq[] (not a visual position) */
 function findCard(id) {
   if (!id) return null;
-  for (const c of state.categories) for (const l of c.lists) {
-    const i = l.cards.findIndex(k => k.id === id);
-    if (i > -1) return {cat: c, list: l, card: l.cards[i], index: i};
+  for (const c of state.categories) {
+    const i = c.seq.findIndex(it => it.type !== 'divider' && it.id === id);
+    if (i > -1) return {cat: c, card: c.seq[i], index: i};
   }
   return null;
 }
@@ -1541,7 +1576,7 @@ let rq = 0;
 function scheduleRender() { if (rq) return; rq = requestAnimationFrame(() => { rq = 0; if (!drag) { renderTabs(); renderBoard(); renderDock(); } }); }
 function commit() { save(); render(); }
 
-function openCount(c) { return c.lists.reduce((n, l) => n + l.cards.filter(k => !k.done).length, 0); }
+function openCount(c) { return catCards(c).filter(k => !k.done).length; }
 
 function renderTabs() {
   const left = tabsEl.scrollLeft;
@@ -1578,61 +1613,57 @@ function cardHTML(c, k, r) {
     + `</article>`;
 }
 
-function listHTML(c, l, r) {
-  const open = l.cards.filter(k => !k.done).length;
-  if (l.collapsed) {
-    return `<section class="list is-collapsed" data-list="${l.id}">`
-      + `<button type="button" class="collapsed-body" data-action="expand" data-drag="list" aria-label="Expand ${esc(l.title)}, ${open} open">`
-      + `${icon('expand')}<span class="list-count">${open}</span><span class="v-title">${esc(l.title)}</span></button>`
-      + `<div class="cards" data-cards></div></section>`;
-  }
-  const hideThis = hideDoneOf(c, l);
-  const visible = orderedCards(l, hideThis ? l.cards.filter(k => !k.done) : l.cards);
-  const hidden = l.cards.length - visible.length;
-  const title = ui.renamingList === l.id
-    ? `<input id="rename-list-input" class="list-title-input" data-rename="${l.id}" value="${esc(l.title)}" maxlength="80" enterkeyhint="done" autocomplete="off" aria-label="List name">`
-    : `<button type="button" class="list-title" data-action="rename-list" title="Rename">${esc(l.title)}</button>`;
-  const composing = ui.composer && ui.composer.listId === l.id;
+function dividerHTML(d) {
+  const title = ui.renamingDivider === d.id
+    ? `<input id="rename-divider-input" class="divider-label-input" data-rename="${d.id}" value="${esc(d.label)}" maxlength="80" enterkeyhint="done" autocomplete="off" aria-label="Divider label">`
+    : `<button type="button" class="divider-label" data-action="rename-divider" data-divider="${d.id}" title="Rename">${esc(d.label)}</button>`;
+  return `<div class="divider" data-divider="${d.id}" data-drag="divider">${title}`
+    + `<button type="button" class="icon-btn sm divider-del" data-action="delete-divider" data-divider="${d.id}" aria-label="Delete “${esc(d.label)}”">${icon('x')}</button></div>`;
+}
+
+/* single column per board: one ordered sequence of cards and dividers, sorted within each
+   divider-bounded segment by the board's own sort rule (manual keeps the dragged order); finished
+   cards never render in their stored position - they all sink to one fixed Completed section at
+   the very bottom, most-recently-finished first (see HANDOFF §3) */
+function boardSeqHTML(c, r) {
+  const notDone = [], doneCards = [];
+  let seg = [];
+  const flushSeg = () => { notDone.push(...orderedSegment(c, seg)); seg = []; };
+  c.seq.forEach(it => {
+    if (it.type === 'divider') { flushSeg(); notDone.push(it); return; }
+    if (it.done) { doneCards.push(it); return; }
+    seg.push(it);
+  });
+  flushSeg();
+  doneCards.sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+  const hideThis = hideDoneOf(c);
+  const composing = !!ui.composer;
   const foot = composing
     ? `<div class="composer"><textarea id="composer-input" rows="2" placeholder="What needs doing?" aria-label="New card title">${esc(ui.composer.text)}</textarea>`
       + `<div class="composer-row"><button type="button" class="btn primary" data-action="composer-add">Add card</button>`
       + `<button type="button" class="icon-btn" data-action="composer-close" aria-label="Stop adding cards">${icon('x')}</button></div></div>`
-    : `<footer class="list-foot"><button type="button" class="add-card" data-action="add-card">${icon('plus')}<span>Add card</span></button>`
-      + (hidden && hideThis ? `<button type="button" class="hidden-note" data-action="show-done" data-list="${l.id}">${hidden} done hidden</button>` : '') + `</footer>`;
-  return `<section class="list" data-list="${l.id}">`
-    + `<header class="list-head" data-drag="list">${title}<span class="list-count" title="Open cards">${l.sort !== 'manual' ? `<span class="sort-ic" title="Sorted by ${l.sort === 'due' ? 'due date' : 'priority'}">${icon(l.sort === 'due' ? 'cal' : 'flag')}</span>` : ''}${open}</span>`
-    + `<button type="button" class="icon-btn" data-action="collapse" aria-label="Collapse ${esc(l.title)}">${icon('collapse')}</button>`
-    + `<button type="button" class="icon-btn" data-action="list-menu" aria-label="${esc(l.title)} options">${icon('dotsH')}</button></header>`
-    + `<div class="cards" data-cards>${visible.map(k => cardHTML(c, k, r)).join('')}</div>${foot}</section>`;
-}
-
-function addListHTML() {
-  if (!ui.addingList) return `<button type="button" class="add-list" data-action="addlist-open">${icon('plus')}<span>Add list</span></button>`;
-  return `<div class="add-list is-open"><input id="addlist-input" value="${esc(ui.addListText)}" placeholder="List name" maxlength="80" enterkeyhint="done" autocomplete="off" aria-label="New list name">`
-    + `<div class="composer-row"><button type="button" class="btn primary" data-action="addlist-save">Add list</button>`
-    + `<button type="button" class="icon-btn" data-action="addlist-close" aria-label="Cancel">${icon('x')}</button></div></div>`;
+    : `<footer class="board-foot"><button type="button" class="add-card" data-action="add-card">${icon('plus')}<span>Add card</span></button>`
+      + `<button type="button" class="add-card" data-action="add-divider">${icon('plus')}<span>Add divider</span></button></footer>`;
+  const main = notDone.map(it => it.type === 'divider' ? dividerHTML(it) : cardHTML(c, it, r)).join('') + foot;
+  if (!doneCards.length) return main;
+  if (hideThis) return main + `<p class="hidden-note" style="padding:2px 6px">${doneCards.length} done hidden</p>`;
+  return main + `<div class="completed-wrap"><div class="divider is-done-header"><span class="divider-label">Completed<span class="divider-count">${doneCards.length}</span></span></div>`
+    + `<div class="completed-cards">${doneCards.map(k => cardHTML(c, k, r)).join('')}</div></div>`;
 }
 
 /* transient UI state (not saved) */
-const ui = {composer: null, addingList: false, addListText: '', renamingList: null, focus: null, scrollListEnd: null, scroll: {},
+const ui = {composer: null, renamingDivider: null, focus: null, scrollToEnd: false, scroll: {},
   timeTab: 'focus', allTasks: false, pomoSetOpen: false, hours: {from: '', to: ''}, stats: {job: 'all', period: 'month', offset: 0}, clOpen: null};
 
 function renderBoard() {
   const c = currentCat(), r = running();
-  const tops = {};
-  $$('.list', boardEl).forEach(l => { const k = $('[data-cards]', l); if (k) tops[l.dataset.list] = k.scrollTop; });
   const key = c.id;
   const sameCat = boardEl.dataset.cat === key;
-  const left = sameCat ? boardEl.scrollLeft : (ui.scroll[key] || 0);
+  const top = sameCat ? boardEl.scrollTop : (ui.scroll[key] || 0);
   boardEl.dataset.cat = key;
-  boardEl.innerHTML = c.lists.map(l => listHTML(c, l, r)).join('') + addListHTML() + '<div class="board-end" aria-hidden="true"></div>';
-  boardEl.scrollLeft = left;
-  $$('.list', boardEl).forEach(l => {
-    const k = $('[data-cards]', l); if (!k) return;
-    if (ui.scrollListEnd === l.dataset.list) k.scrollTop = k.scrollHeight;
-    else if (tops[l.dataset.list]) k.scrollTop = tops[l.dataset.list];
-  });
-  ui.scrollListEnd = null;
+  boardEl.innerHTML = boardSeqHTML(c, r);
+  boardEl.scrollTop = ui.scrollToEnd ? boardEl.scrollHeight : top;
+  ui.scrollToEnd = false;
   if (ui.focus) {
     const el = document.getElementById(ui.focus); ui.focus = null;
     if (el) {
@@ -1643,7 +1674,7 @@ function renderBoard() {
     }
   }
 }
-boardEl.addEventListener('scroll', () => { ui.scroll[boardEl.dataset.cat] = boardEl.scrollLeft; }, {passive: true});
+boardEl.addEventListener('scroll', () => { ui.scroll[boardEl.dataset.cat] = boardEl.scrollTop; }, {passive: true});
 
 function renderDock() {
   const r = running(), p = pr(), now = Date.now();
@@ -1694,19 +1725,17 @@ function addFromComposer() {
   const text = ta ? ta.value : ui.composer.text;
   const titles = text.split('\n').map(s => s.trim()).filter(Boolean);
   if (!titles.length) { if (ta) ta.focus(); return; }
-  const f = findList(ui.composer.listId); if (!f) return;
-  titles.forEach(t => f.list.cards.push(newCard(t)));
-  ui.composer.text = ''; ui.focus = 'composer-input'; ui.scrollListEnd = f.list.id;
+  const c = currentCat();
+  titles.forEach(t => c.seq.push(newCard(t)));
+  ui.composer.text = ''; ui.focus = 'composer-input'; ui.scrollToEnd = true;
   commit();
 }
-function addList() {
-  const inp = $('#addlist-input');
-  const name = (inp ? inp.value : ui.addListText).trim();
-  if (!name) { if (inp) inp.focus(); return; }
-  currentCat().lists.push(newList(name));
-  ui.addListText = ''; ui.focus = 'addlist-input';
-  commit();
-  boardEl.scrollLeft = boardEl.scrollWidth;
+/* inserts a new divider at the end of the board's sequence (before its Completed section, which
+   isn't part of seq - see boardSeqHTML) */
+function addDivider(label) {
+  const name = String(label || '').trim(); if (!name) return;
+  currentCat().seq.push(newDivider(name));
+  haptic('success'); commit(); toast(`Added “${name}”`);
 }
 function withUndo(msg, fn) {
   const snap = JSON.stringify(state);
@@ -1714,39 +1743,12 @@ function withUndo(msg, fn) {
   fn(); commit();
   toast(msg, {action: 'Undo', onAction: () => { state = normalize(JSON.parse(snap)); commit(); }});
 }
-function startComposer(listId) { ui.composer = {listId, text: ''}; ui.focus = 'composer-input'; renderBoard(); }
-function startRename(listId) { ui.renamingList = listId; ui.focus = 'rename-list-input'; renderBoard(); }
-/* the column finished cards go to: one marked as Done, or one named like it */
-const DONE_NAME = /^(done|hotovo|dokon[čc]eno|completed|finished)$/i;
-const doneListOf = c => c.lists.find(l => l.isDone) || c.lists.find(l => DONE_NAME.test(l.title.trim()));
-/* a board's own placement rule for finished cards, or the global setting if it hasn't set one */
-const doneModeOf = c => c.doneMode || (state.settings.autoMoveDone ? 'move' : 'leave');
-/* whether a list hides its own finished cards: list setting wins if set, else the board's done mode, else the global setting */
-const hideDoneOf = (c, l) => l.hideDone != null ? l.hideDone : (doneModeOf(c) === 'hide' || state.settings.hideDone);
-/* returns a short message about where the card went, or '' */
-function moveForDone(card, done) {
-  const f = findCard(card.id); if (!f) return '';
-  const {cat: c, list: l} = f;
-  const mode = doneModeOf(c);
-  if (mode === 'move') {
-    if (done) {
-      let dl = doneListOf(c), created = false;
-      if (!dl) { dl = newList('Done', {isDone: true}); c.lists.push(dl); created = true; }
-      if (dl === l) return '';
-      l.cards.splice(f.index, 1); card.fromList = l.id; dl.cards.unshift(card);
-      return created ? 'Moved to a new Done column' : `Moved to ${dl.title}`;
-    }
-    const dl = doneListOf(c);
-    if (l !== dl) return '';
-    const back = c.lists.find(x => x.id === card.fromList && x !== dl) || c.lists.find(x => x !== dl);
-    if (!back) return '';
-    l.cards.splice(f.index, 1); delete card.fromList; back.cards.unshift(card);
-    return `Moved back to ${back.title}`;
-  }
-  /* 'leave' and 'hide' never reposition the card; 'hide' only hides it at render time */
-  return '';
-}
-/* a repeating card that gets finished leaves a fresh copy in its place with the next due date */
+function startComposer() { ui.composer = {text: ''}; ui.focus = 'composer-input'; renderBoard(); }
+function startRenameDivider(id) { ui.renamingDivider = id; ui.focus = 'rename-divider-input'; renderBoard(); }
+/* whether a board hides its own finished (sunk-to-Completed) cards: board setting wins if set, else the global setting */
+const hideDoneOf = c => c.hideDone != null ? c.hideDone : state.settings.hideDone;
+/* a repeating card that gets finished leaves a fresh copy right next to it (same board, same
+   spot in the sequence) with the next due date */
 function spawnNext(card) {
   if (!card.repeat || card.repeat === 'none' || !card.due) return '';
   const today = isoDay(0);
@@ -1754,9 +1756,9 @@ function spawnNext(card) {
   while (next && next < today) next = nextRepeat(card.repeat, next);
   const f = findCard(card.id); if (!next || !f) return '';
   const cp = cloneCard(card);
-  Object.assign(cp, {done: false, due: next, repeat: card.repeat}); delete cp.fromList; delete cp.spawned; delete cp.repeatWas;
+  Object.assign(cp, {done: false, due: next, repeat: card.repeat}); delete cp.spawned; delete cp.repeatWas;
   cp.checklist.forEach(i => { i.done = false; });
-  f.list.cards.splice(f.index, 0, cp);
+  f.cat.seq.splice(f.index, 0, cp);
   card.spawned = cp.id; card.repeatWas = card.repeat; card.repeat = 'none';
   const t = dueInfo(next, false).text || fmtDate(parseISO(next));
   return `next one ${/^(Today|Tomorrow)$/.test(t) ? t.toLowerCase() : 'on ' + t}`;
@@ -1764,17 +1766,21 @@ function spawnNext(card) {
 function unspawn(card) {
   if (!card.spawned) return;
   const nf = findCard(card.spawned);
-  if (nf && !nf.card.done) nf.list.cards.splice(nf.index, 1);
+  if (nf && !nf.card.done) nf.cat.seq.splice(nf.index, 1);
   card.repeat = card.repeatWas || card.repeat; delete card.spawned; delete card.repeatWas;
 }
+/* marks a card done/not done. Finished cards auto-sink to the board's Completed section at render
+   time (see boardSeqHTML) - this never repositions the card in its board's seq[], so un-ticking
+   it returns it to exactly where it was stored, with no bookkeeping needed. Returns a short
+   message about a spawned repeat copy, or '' */
 function setDone(card, done) {
   card.done = done;
+  if (done) card.doneAt = Date.now(); else delete card.doneAt;
   haptic(done ? 'success' : 'tap');
   const r = running();
   if (done && r && r.cardId === card.id) { stopTracking(); toast('Timer stopped'); }
   const next = done ? spawnNext(card) : (unspawn(card), '');
-  const moved = moveForDone(card, done);
-  return [moved, next].filter(Boolean).join(' · ').replace(/^next/, 'Next');
+  return next.replace(/^next/, 'Next');
 }
 
 /* ================= event delegation ================= */
@@ -1794,14 +1800,12 @@ document.addEventListener('click', e => {
     }
     return;
   }
-  const listEl = a.closest('.list');
-  const lid = listEl && listEl.dataset.list;
   switch (a.dataset.action) {
     case 'tab': {
       const id = a.dataset.cat;
       if (id === state.active) { categoryMenu(a); break; }
       haptic('select');
-      state.active = id; ui.composer = null; ui.addingList = false; ui.renamingList = null;
+      state.active = id; ui.composer = null; ui.renamingDivider = null;
       commit();
       const t = tabsEl.querySelector(`[data-cat="${id}"]`); if (t) t.scrollIntoView({inline: 'nearest', block: 'nearest'});
       break;
@@ -1825,33 +1829,29 @@ document.addEventListener('click', e => {
     case 'track-stop': haptic('tap'); stopTracking(); commit(); if (timeDraw) timeDraw(); toast('Timer stopped'); break;
     case 'toggle-done': {
       const f = findCard(a.closest('.card').dataset.card); if (!f) break;
-      const card = f.card, moved = setDone(card, !card.done);
+      const card = f.card, msg = setDone(card, !card.done);
       commit();
-      if (card.done && (moved || hideDoneOf(f.cat, f.list))) {
-        toast(moved || 'Marked done and hidden', {action: 'Undo', onAction: () => { setDone(card, false); commit(); }});
-      } else if (moved) toast(moved);
+      if (card.done && (msg || hideDoneOf(f.cat))) {
+        toast(msg || 'Marked done and hidden', {action: 'Undo', onAction: () => { setDone(card, false); commit(); }});
+      } else if (msg) toast(msg);
       break;
     }
-    case 'collapse': { const f = findList(lid); if (f) { f.list.collapsed = true; if (ui.composer && ui.composer.listId === lid) ui.composer = null; commit(); } break; }
-    case 'expand': { const f = findList(lid); if (f) { f.list.collapsed = false; commit(); } break; }
-    case 'rename-list': startRename(lid); break;
-    case 'list-menu': listMenu(a, lid); break;
-    case 'add-card': startComposer(lid); break;
+    case 'rename-divider': startRenameDivider(a.dataset.divider); break;
+    case 'delete-divider': {
+      const f = findDivider(a.dataset.divider); if (!f) break;
+      withUndo(`Deleted “${f.divider.label}”`, () => { f.cat.seq.splice(f.cat.seq.indexOf(f.divider), 1); });
+      break;
+    }
+    case 'add-card': startComposer(); break;
     case 'composer-add': addFromComposer(); break;
     case 'composer-close': ui.composer = null; renderBoard(); break;
-    case 'show-done': { const f = findList(a.dataset.list); if (f) f.list.hideDone = false; commit(); toast('Showing completed cards in this list'); break; }
-    case 'addlist-open':
-      ui.addingList = true; ui.addListText = ''; ui.focus = 'addlist-input'; renderBoard();
-      boardEl.scrollLeft = boardEl.scrollWidth;
-      break;
-    case 'addlist-save': addList(); break;
-    case 'addlist-close': ui.addingList = false; renderBoard(); break;
+    case 'add-divider': dividerPicker(a); break;
   }
 });
 
 /* keep the keyboard up when tapping composer buttons */
 document.addEventListener('pointerdown', e => {
-  if (e.target.closest('.composer button, .add-list.is-open button')) e.preventDefault();
+  if (e.target.closest('.composer button')) e.preventDefault();
 });
 document.addEventListener('change', e => {
   const t = e.target;
@@ -1865,18 +1865,13 @@ document.addEventListener('keydown', e => {
     else if (e.key === 'Escape') { ui.composer = null; renderBoard(); }
     return;
   }
-  if (t.id === 'rename-list-input') {
+  if (t.id === 'rename-divider-input') {
     if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); t.blur(); }
-    else if (e.key === 'Escape') { ui.renamingList = null; renderBoard(); }
-    return;
-  }
-  if (t.id === 'addlist-input') {
-    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); addList(); }
-    else if (e.key === 'Escape') { ui.addingList = false; renderBoard(); }
+    else if (e.key === 'Escape') { ui.renamingDivider = null; renderBoard(); }
     return;
   }
   if (e.key === 'Escape') { if (menu) closeMenu(); else if (sheet) closeSheet(); else if (aiDock) closeAiDock(); return; }
-  /* desktop only: Ctrl/Cmd+C copies the focused card (or the one open in the card window), Ctrl/Cmd+V pastes it into the relevant list */
+  /* desktop only: Ctrl/Cmd+C copies the focused card (or the one open in the card window), Ctrl/Cmd+V pastes it into the open board */
   if (wide.matches && (e.ctrlKey || e.metaKey) && !e.altKey && !(t.closest && t.closest('input, textarea, select, [contenteditable]'))) {
     if (e.key === 'c' || e.key === 'C') {
       const focusedCard = t.closest && t.closest('.card[data-card]');
@@ -1885,19 +1880,18 @@ document.addEventListener('keydown', e => {
       return;
     }
     if ((e.key === 'v' || e.key === 'V') && clipboardCard) {
-      let targetListId = null;
+      let targetCatId = null;
       const focusedCard = t.closest && t.closest('.card[data-card]');
-      if (focusedCard) { const f = findCard(focusedCard.dataset.card); if (f) targetListId = f.list.id; }
-      else if (openCardId) { const f = findCard(openCardId); if (f) targetListId = f.list.id; }
-      else { const focusedList = t.closest && t.closest('.list[data-list]'); if (focusedList) targetListId = focusedList.dataset.list; }
-      if (!targetListId) { const l = currentCat().lists.find(x => !x.collapsed) || currentCat().lists[0]; if (l) targetListId = l.id; }
-      if (targetListId && pasteClipboardInto(targetListId)) e.preventDefault();
+      if (focusedCard) { const f = findCard(focusedCard.dataset.card); if (f) targetCatId = f.cat.id; }
+      else if (openCardId) { const f = findCard(openCardId); if (f) targetCatId = f.cat.id; }
+      if (!targetCatId) targetCatId = currentCat().id;
+      if (targetCatId && pasteClipboardInto(targetCatId)) e.preventDefault();
       return;
     }
   }
-  /* keyboard shortcuts on a computer: N = new card in the first open list, T = timer panel */
+  /* keyboard shortcuts on a computer: N = new card on the open board, T = timer panel */
   if (!sheet && !menu && !e.ctrlKey && !e.metaKey && !e.altKey && !(t.closest && t.closest('input, textarea, select, [contenteditable]'))) {
-    if (e.key === 'n' || e.key === 'N') { const l = currentCat().lists.find(x => !x.collapsed); if (l) { e.preventDefault(); startComposer(l.id); } return; }
+    if (e.key === 'n' || e.key === 'N') { e.preventDefault(); startComposer(); return; }
     if (e.key === 't' || e.key === 'T') { e.preventDefault(); openTimePanel(); return; }
     if (e.key === 'c' || e.key === 'C') { e.preventDefault(); openCalendar(); return; }
     if (e.key === 'a' || e.key === 'A') { e.preventDefault(); openAssistant(); return; }
@@ -1908,36 +1902,23 @@ document.addEventListener('keydown', e => {
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.id === 'composer-input' && ui.composer) { ui.composer.text = t.value; autosize(t); }
-  else if (t.id === 'addlist-input') ui.addListText = t.value;
 });
 
 document.addEventListener('focusout', e => {
   const t = e.target;
-  if (t.id === 'rename-list-input') {
-    if (ui.renamingList !== t.dataset.rename) return;
-    const f = findList(t.dataset.rename), v = t.value.trim();
-    if (f && v) f.list.title = v;
-    ui.renamingList = null; save();
+  if (t.id === 'rename-divider-input') {
+    if (ui.renamingDivider !== t.dataset.rename) return;
+    const f = findDivider(t.dataset.rename), v = t.value.trim();
+    if (f && v) f.divider.label = v;
+    ui.renamingDivider = null; save();
     setTimeout(() => { if (!drag) { renderTabs(); renderBoard(); } });
   } else if (t.id === 'composer-input') {
     if (e.relatedTarget && e.relatedTarget.closest('.composer')) return;
     if (!ui.composer) return;
     if (t.value.trim()) { addFromComposer(); ui.composer = null; ui.focus = null; setTimeout(() => { if (!drag) renderBoard(); }); }
     else { ui.composer = null; setTimeout(() => { if (!drag && !ui.composer) renderBoard(); }); }
-  } else if (t.id === 'addlist-input') {
-    if (e.relatedTarget && e.relatedTarget.closest('.add-list')) return;
-    if (t.value.trim()) { addList(); ui.addingList = false; ui.focus = null; setTimeout(() => { if (!drag) renderBoard(); }); }
-    else { ui.addingList = false; setTimeout(() => { if (!drag && !ui.addingList) renderBoard(); }); }
   }
 });
-
-/* desktop: vertical wheel scrolls the board sideways when not over a scrollable list */
-boardEl.addEventListener('wheel', e => {
-  if (e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
-  const c = e.target.closest('[data-cards]');
-  if (c && c.scrollHeight > c.clientHeight) return;
-  boardEl.scrollLeft += e.deltaY; e.preventDefault();
-}, {passive: false});
 
 /* ================= drag & drop (pointer events, touch long-press) ================= */
 let pend = null, drag = null, settling = false;
@@ -1950,14 +1931,13 @@ function copyCardToClipboard(cardId) {
   haptic('select'); toast(`Copied “${f.card.title}”`);
   return true;
 }
-function pasteClipboardInto(listId) {
+function pasteClipboardInto(catId) {
   if (!clipboardCard) return false;
-  const to = findList(listId); if (!to) return false;
-  const cp = cloneCard(clipboardCard); cp.done = false; delete cp.fromList;
-  to.list.cards.push(cp);
-  if (to.list.collapsed) to.list.collapsed = false;
+  const to = state.categories.find(x => x.id === catId); if (!to) return false;
+  const cp = cloneCard(clipboardCard); cp.done = false;
+  to.seq.push(cp);
   haptic('success'); commit();
-  toast(`Pasted “${cp.title}” into ${to.list.title}`);
+  toast(`Pasted “${cp.title}” into ${to.name}`);
   return true;
 }
 
@@ -1965,17 +1945,16 @@ document.addEventListener('pointerdown', e => {
   if (drag || pend || settling) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   const t = e.target;
-  if (t.closest('input, textarea, select, .composer, .sheet, .menu, .add-list, .dock')) return;
+  if (t.closest('input, textarea, select, .composer, .sheet, .menu, .dock')) return;
   let el = null, type = null;
   const cardEl = t.closest('.card');
   if (cardEl && boardEl.contains(cardEl)) { el = cardEl; type = 'card'; }
-  else if (t.closest('[data-drag="list"]') || (t.closest('#board > .list') && !t.closest('button'))) { el = t.closest('.list'); type = 'list'; }
+  else if (t.closest('[data-drag="divider"]') && !t.closest('button')) { el = t.closest('.divider'); type = 'divider'; }
   else if (t.closest('.tab[data-cat]')) { el = t.closest('.tab'); type = 'tab'; }
   if (!el) return;
   pend = {el, type, x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, id: e.pointerId, touch: e.pointerType !== 'mouse'};
   if (pend.touch) {
-    const pressEl = type === 'list' && !el.classList.contains('is-collapsed') ? el.querySelector('.list-head') : el;
-    pend.pressEl = pressEl; pressEl.classList.add('is-pressing');
+    pend.pressEl = el; el.classList.add('is-pressing');
     pend.timer = setTimeout(() => { if (pend) beginDrag(); }, LONGPRESS_MS);
   }
 });
@@ -1993,7 +1972,7 @@ window.addEventListener('pointerup', e => { if (drag && e.pointerId === drag.id)
 window.addEventListener('pointercancel', e => { if (drag && e.pointerId === drag.id) endDrag(); else if (pend && e.pointerId === pend.id) cancelPend(); });
 /* once a drag is live, stop the browser from turning the gesture into a scroll */
 document.addEventListener('touchmove', e => { if (drag) e.preventDefault(); }, {passive: false});
-document.addEventListener('contextmenu', e => { if (drag || pend || e.target.closest('.card, .list, .tab')) e.preventDefault(); });
+document.addEventListener('contextmenu', e => { if (drag || pend || e.target.closest('.card, .divider, .tab')) e.preventDefault(); });
 
 function cancelPend() {
   if (!pend) return;
@@ -2017,7 +1996,7 @@ function beginDrag() {
   drag = {
     el, type: p.type, id: p.id, x: p.lx, y: p.ly, offX: p.x - r.left, offY: p.y - r.top, ghost, hover: null, raf: 0, overTrash: false, startedAt: performance.now(),
     tabHover: null, tabTimer: 0, tabArmed: null,
-    flipSel: p.type === 'card' ? '#board .card' : p.type === 'list' ? '#board > .list, #board > .add-list' : '#tabs > .tab[data-cat], #tabs > .tab-add'
+    flipSel: p.type === 'tab' ? '#tabs > .tab[data-cat], #tabs > .tab-add' : '#board > .card, #board > .divider'
   };
   el.classList.add('is-placeholder');
   document.documentElement.classList.add('dragging');
@@ -2028,29 +2007,7 @@ function beginDrag() {
 
 function placeGhost() {
   const {ghost, x, y, offX, offY, type} = drag;
-  ghost.style.transform = `translate3d(${x - offX}px, ${y - offY}px, 0) rotate(${type === 'tab' ? 0 : type === 'list' ? 1.2 : 2.2}deg)`;
-}
-
-function setHover(list) {
-  if (drag.hover === list) return;
-  if (drag.hover) drag.hover.classList.remove('is-drop');
-  drag.hover = list;
-  if (list) list.classList.add('is-drop');
-}
-
-function listAt(x, y) {
-  const under = document.elementFromPoint(x, y);
-  const l = under && under.closest('#board > .list');
-  if (l) return l;
-  const br = boardEl.getBoundingClientRect();
-  if (y < br.top - 30) return drag.hover;
-  let best = null, bd = Infinity;
-  for (const n of $$(':scope > .list', boardEl)) {
-    const r = n.getBoundingClientRect();
-    const d = x < r.left ? r.left - x : x > r.right ? x - r.right : 0;
-    if (d < bd) { bd = d; best = n; }
-  }
-  return best;
+  ghost.style.transform = `translate3d(${x - offX}px, ${y - offY}px, 0) rotate(${type === 'tab' ? 0 : type === 'divider' ? 1.2 : 2.2}deg)`;
 }
 
 /* insertion point from layout positions (ignores in-flight FLIP transforms) */
@@ -2129,22 +2086,16 @@ function setTabHover(tabEl) {
     }, BOARD_DROP_HOLD_MS);
   }
 }
-/* same "first real list" rule the rest of the app uses for a board's default destination
-   (whatever doneListOf() would skip over), so this doesn't invent a new convention */
-function firstNonDoneList(c) {
-  if (!c.lists.length) return null;
-  return c.lists.find(l => l !== doneListOf(c)) || c.lists[0];
-}
-/* moves a card into another board's first non-Done list; used by the tab-hold drag below and
-   exposed read/write via window.docketDebug so the state-level move is testable without a real
-   pointer drag (jsdom has no layout/elementFromPoint; see tests/smoke20.js) */
-function moveCardToCategory(card, fromList, destCat) {
-  const destList = firstNonDoneList(destCat);
-  if (!destList) return null;
-  fromList.cards.splice(fromList.cards.indexOf(card), 1);
-  destList.cards.push(card);
-  if (destList.collapsed) destList.collapsed = false;
-  return destList;
+/* moves a card into another board's single sequence (appended at the end, i.e. before its
+   Completed section); used by the tab-hold drag below and exposed read/write via
+   window.docketDebug so the state-level move is testable without a real pointer drag (jsdom has
+   no layout/elementFromPoint; see tests/smoke20.js). Dividers never move this way. */
+function moveCardToCategory(card, fromCat, destCat) {
+  const i = fromCat.seq.indexOf(card);
+  if (i === -1) return false;
+  fromCat.seq.splice(i, 1);
+  destCat.seq.push(card);
+  return true;
 }
 /* called from endDrag() once a tab-hold has armed - d is the already-detached drag record
    (drag itself is already null by the time endDrag reaches this) */
@@ -2157,32 +2108,29 @@ function finishBoardMove(d) {
   d.ghost.style.opacity = '0';
   setTimeout(() => d.ghost.remove(), 180);
   settling = false;
-  if (!f || !destCat) { render(); return; }
-  const destList = moveCardToCategory(f.card, f.list, destCat);
-  if (!destList) { render(); return; }
+  if (!f || !destCat || !moveCardToCategory(f.card, f.cat, destCat)) { render(); return; }
   haptic('success');
   commit();
   toast(`Moved to ${destCat.name}`, {action: 'Open', onAction: () => { state.active = destCat.id; commit(); }});
 }
 
+/* the direct children of #board that take part in reordering: cards and dividers, in the order
+   they're currently laid out (sorted segments included) - not the Completed section or footer,
+   which live in their own wrapper elements and so are never direct children here */
+function boardDragItems(exclude) {
+  return [...boardEl.children].filter(n => n !== exclude && (n.classList.contains('card') || n.classList.contains('divider')));
+}
 function updateTarget() {
   const {type, x, y, el} = drag;
   if (type === 'card') {
     const tabEl = tabCatAt(x, y);
     setTabHover(tabEl);
-    if (tabEl) { setHover(null); hideTrash(); return; }
+    if (tabEl) { hideTrash(); return; }
     updateTrash();
-    if (drag.overTrash) { setHover(null); return; }
-    const list = listAt(x, y);
-    setHover(list);
-    if (!list) return;
-    const cont = list.querySelector('[data-cards]');
-    if (list.classList.contains('is-collapsed')) { if (el.parentNode !== cont) flip(() => cont.appendChild(el)); return; }
-    const items = [...cont.children].filter(n => n !== el && n.classList.contains('card'));
-    placeInto(cont, pickBefore(items, cont, y, 'y'));
-  } else if (type === 'list') {
-    const items = $$(':scope > .list', boardEl).filter(n => n !== el);
-    placeInto(boardEl, pickBefore(items, boardEl, x, 'x') || boardEl.querySelector(':scope > .add-list'));
+    if (drag.overTrash) return;
+    placeInto(boardEl, pickBefore(boardDragItems(el), boardEl, y, 'y'));
+  } else if (type === 'divider') {
+    placeInto(boardEl, pickBefore(boardDragItems(el), boardEl, y, 'y'));
   } else {
     const items = $$(':scope > .tab[data-cat]', tabsEl).filter(n => n !== el);
     placeInto(tabsEl, pickBefore(items, tabsEl, x, 'x') || tabsEl.querySelector('.tab-add'));
@@ -2224,35 +2172,24 @@ function autoScroll() {
     if (el[prop] !== before) moved = true;
   };
   if (type === 'tab') { const r = tabsEl.getBoundingClientRect(); nudge(tabsEl, 'x', r.left, r.right, x); }
-  else {
-    const r = boardEl.getBoundingClientRect();
-    nudge(boardEl, 'x', r.left, r.right, x);
-    if (type === 'card' && drag.hover && !drag.hover.classList.contains('is-collapsed')) {
-      const c = drag.hover.querySelector('[data-cards]'), cr = c.getBoundingClientRect();
-      if (x >= cr.left && x <= cr.right && c.scrollHeight > c.clientHeight) nudge(c, 'y', cr.top, cr.bottom, y);
-    }
-  }
+  else { const r = boardEl.getBoundingClientRect(); nudge(boardEl, 'y', r.top, r.bottom, y); }
   if (moved) updateTarget();
   drag.raf = requestAnimationFrame(autoScroll);
 }
 
 function commitDrop(d) {
-  if (d.type === 'card') {
-    const f = findCard(d.el.dataset.card), listEl = d.el.closest('.list');
-    if (!f || !listEl) return;
-    const to = findList(listEl.dataset.list); if (!to) return;
-    f.list.cards.splice(f.index, 1);
-    let idx = to.list.cards.length;
-    if (!listEl.classList.contains('is-collapsed')) {
-      const prev = d.el.previousElementSibling, next = d.el.nextElementSibling;
-      if (prev) { const i = to.list.cards.findIndex(k => k.id === prev.dataset.card); if (i > -1) idx = i + 1; }
-      else if (next) { const i = to.list.cards.findIndex(k => k.id === next.dataset.card); if (i > -1) idx = i; }
-      else idx = 0;
-    } else if (to.list !== f.list) toast(`Moved to ${to.list.title}`);
-    to.list.cards.splice(idx, 0, f.card);
-  } else if (d.type === 'list') {
-    const order = $$(':scope > .list', boardEl).map(n => n.dataset.list);
-    currentCat().lists.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+  if (d.type === 'card' || d.type === 'divider') {
+    const c = currentCat();
+    const itemId = d.type === 'card' ? d.el.dataset.card : d.el.dataset.divider;
+    const i = c.seq.findIndex(it => it.id === itemId);
+    if (i === -1) return;
+    const [item] = c.seq.splice(i, 1);
+    const prev = d.el.previousElementSibling, next = d.el.nextElementSibling;
+    let idx = c.seq.length;
+    if (prev) { const pi = c.seq.findIndex(it => it.id === (prev.dataset.card || prev.dataset.divider)); if (pi > -1) idx = pi + 1; }
+    else if (next) { const ni = c.seq.findIndex(it => it.id === (next.dataset.card || next.dataset.divider)); if (ni > -1) idx = ni; else idx = 0; }
+    else idx = 0;
+    c.seq.splice(idx, 0, item);
   } else {
     const order = $$(':scope > .tab[data-cat]', tabsEl).map(n => n.dataset.cat);
     state.categories.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
@@ -2276,7 +2213,7 @@ function endDrag() {
     d.ghost.classList.add('to-trash');
     setTimeout(() => d.ghost.remove(), 180);
     settling = false;
-    if (f) { haptic('warn'); const {list} = f, card = f.card; withUndo('Card deleted', () => { const r = running(); if (r && r.cardId === card.id) stopTracking(); list.cards.splice(list.cards.indexOf(card), 1); }); }
+    if (f) { haptic('warn'); const {cat} = f, card = f.card; withUndo('Card deleted', () => { const r = running(); if (r && r.cardId === card.id) stopTracking(); cat.seq.splice(cat.seq.indexOf(card), 1); }); }
     else render();
     return;
   }
@@ -2475,10 +2412,13 @@ function closeMenu(instant) {
 function categoryMenu(anchor) {
   const c = currentCat(), i = state.categories.indexOf(c), n = state.categories.length;
   const job = jobById(c.jobId);
+  const doneN = catCards(c).filter(k => k.done).length;
   openMenu(anchor, [
     {type: 'title', label: c.name},
     {label: 'Rename', icon: 'pencil', onSelect: () => promptSheet({title: 'Rename category', value: c.name, confirm: 'Save', onSave: v => { c.name = v; commit(); }})},
     {type: 'swatches', value: c.color, onPick: k => { c.color = k; commit(); }},
+    {label: 'Add divider', icon: 'plus', onSelect: () => dividerPicker(anchor)},
+    {label: 'Paste card', hint: clipboardCard ? `“${clipboardCard.title}”` : 'Nothing copied yet', icon: 'download', disabled: !clipboardCard, onSelect: () => pasteClipboardInto(c.id)},
     {label: 'Job for time tracking', hint: job ? job.name : 'None', icon: 'briefcase', onSelect: () => openMenu(anchor, [
       {type: 'title', label: `Time in ${c.name} counts toward`},
       ...state.jobs.map(j => ({label: j.name, dot: j.color, checked: c.jobId === j.id, onSelect: () => { c.jobId = j.id; commit(); toast(`${c.name} now counts toward ${j.name}`); }})),
@@ -2486,66 +2426,36 @@ function categoryMenu(anchor) {
       {type: 'sep'},
       {label: 'New job…', icon: 'plus', onSelect: () => openJobEditor(null, {linkCat: c.id})}
     ])},
-    {label: 'Finished cards', hint: {move: 'Move to Done', leave: 'Leave in place', hide: 'Hidden'}[doneModeOf(c)] + (c.doneMode ? '' : ' (default)'), icon: 'doneAll', onSelect: () => openMenu(anchor, [
-      {type: 'title', label: `Finished cards in ${c.name}`},
-      {label: 'Use the global default', hint: state.settings.autoMoveDone ? 'Move to Done' : 'Leave in place', checked: !c.doneMode, onSelect: () => { delete c.doneMode; commit(); }},
-      {label: 'Move to the Done column', checked: c.doneMode === 'move', onSelect: () => { c.doneMode = 'move'; commit(); }},
-      {label: 'Leave it exactly where it is', checked: c.doneMode === 'leave', onSelect: () => { c.doneMode = 'leave'; commit(); }},
-      {label: 'Hide', checked: c.doneMode === 'hide', onSelect: () => { c.doneMode = 'hide'; commit(); }}
+    {label: 'Sort cards', hint: {manual: 'Manually (drag)', priority: 'By priority', due: 'By due date'}[c.sort], icon: 'sort', onSelect: () => openMenu(anchor, [
+      {type: 'title', label: `Sort “${c.name}”`},
+      ...[['manual', 'Manually', 'Keep the order you drag them in'], ['priority', 'By priority', 'Urgent first, then by due date'], ['due', 'By due date', 'Soonest first, no date last']].map(([k, nm, h]) =>
+        ({label: nm, hint: h, checked: c.sort === k, onSelect: () => { c.sort = k; commit(); }})),
+      {type: 'sep'}, {type: 'title', label: 'Pinned cards always stay on top'}
     ])},
+    {label: 'Hide completed cards', hint: c.hideDone == null ? `Follows global (${state.settings.hideDone ? 'hidden' : 'shown'})` : (c.hideDone ? 'Hidden on this board' : 'Shown on this board'), icon: 'doneAll', onSelect: () => openMenu(anchor, [
+      {type: 'title', label: `Completed cards on “${c.name}”`},
+      {label: 'Use the global default', hint: state.settings.hideDone ? 'Hidden' : 'Shown', checked: c.hideDone == null, onSelect: () => { c.hideDone = null; commit(); }},
+      {label: 'Always hide on this board', checked: c.hideDone === true, onSelect: () => { c.hideDone = true; commit(); }},
+      {label: 'Always show on this board', checked: c.hideDone === false, onSelect: () => { c.hideDone = false; commit(); }}
+    ])},
+    {label: doneN ? `Clear ${doneN} completed` : 'Clear completed', icon: 'doneAll', disabled: !doneN,
+      onSelect: () => withUndo(`Removed ${doneN} completed card${doneN > 1 ? 's' : ''}`, () => { c.seq = c.seq.filter(it => it.type === 'divider' || !it.done); })},
     {label: 'Move left', icon: 'arrowL', disabled: i === 0, onSelect: () => { moveItem(state.categories, i, i - 1); commit(); }},
     {label: 'Move right', icon: 'arrowR', disabled: i === n - 1, onSelect: () => { moveItem(state.categories, i, i + 1); commit(); }},
     {type: 'sep'},
-    {label: 'Delete category', icon: 'trash', danger: true, disabled: n < 2, hint: n < 2 ? 'You need at least one category' : `${c.lists.length} lists, ${c.lists.reduce((s, l) => s + l.cards.length, 0)} cards`,
+    {label: 'Delete category', icon: 'trash', danger: true, disabled: n < 2, hint: n < 2 ? 'You need at least one category' : `${catCards(c).length} cards`,
       onSelect: () => withUndo(`Deleted “${c.name}”`, () => { state.categories.splice(i, 1); state.active = state.categories[Math.max(0, i - 1)].id; })}
   ]);
 }
 
-function listMenu(anchor, lid) {
-  const f = findList(lid); if (!f) return;
-  const {cat: c, list: l} = f;
-  const i = c.lists.indexOf(l), doneN = l.cards.filter(k => k.done).length;
-  const others = state.categories.filter(x => x !== c);
+/* "Add divider" picker: a preset weekday/section name, or a free-text custom label. Either way
+   it's appended at the end of the open board's sequence (see addDivider). */
+function dividerPicker(anchor) {
   openMenu(anchor, [
-    {type: 'title', label: l.title},
-    {label: 'Add card', icon: 'plus', onSelect: () => startComposer(lid)},
-    {label: 'Paste card', hint: clipboardCard ? `“${clipboardCard.title}”` : 'Nothing copied yet', icon: 'download', disabled: !clipboardCard, onSelect: () => pasteClipboardInto(lid)},
-    {label: 'Rename', icon: 'pencil', onSelect: () => startRename(lid)},
-    {label: 'Collapse', icon: 'collapse', onSelect: () => { l.collapsed = true; commit(); }},
-    {label: 'Done column', hint: doneListOf(c) === l ? 'Finished cards go here' : 'Send finished cards here', icon: 'doneAll', checked: doneListOf(c) === l, onSelect: () => { const was = doneListOf(c) === l && l.isDone; c.lists.forEach(x => { x.isDone = false; }); if (!was) l.isDone = true; commit(); toast(was ? 'Done column follows the name again' : `Finished cards now go to ${l.title}`); }},
-    {label: 'Hide completed cards', hint: l.hideDone == null ? `Follows board/global (${hideDoneOf(c, l) ? 'hidden' : 'shown'})` : (l.hideDone ? 'Hidden in this list' : 'Shown in this list'), icon: 'doneAll', onSelect: () => openMenu(anchor, [
-      {type: 'title', label: `Completed cards in “${l.title}”`},
-      {label: 'Use the board/global default', hint: doneModeOf(c) === 'hide' || state.settings.hideDone ? 'Hidden' : 'Shown', checked: l.hideDone == null, onSelect: () => { l.hideDone = null; commit(); }},
-      {label: 'Always hide in this list', checked: l.hideDone === true, onSelect: () => { l.hideDone = true; commit(); }},
-      {label: 'Always show in this list', checked: l.hideDone === false, onSelect: () => { l.hideDone = false; commit(); }}
-    ])},
-    {label: 'Move left', icon: 'arrowL', disabled: i === 0, onSelect: () => { moveItem(c.lists, i, i - 1); commit(); }},
-    {label: 'Move right', icon: 'arrowR', disabled: i === c.lists.length - 1, onSelect: () => { moveItem(c.lists, i, i + 1); commit(); }},
-    {label: 'Sort cards', hint: {manual: 'Manually (drag)', priority: 'By priority', due: 'By due date'}[l.sort], icon: 'sort', onSelect: () => openMenu(anchor, [
-      {type: 'title', label: `Sort “${l.title}”`},
-      ...[['manual', 'Manually', 'Keep the order you drag them in'], ['priority', 'By priority', 'Urgent first, then by due date'], ['due', 'By due date', 'Soonest first, no date last']].map(([k, n, h]) =>
-        ({label: n, hint: h, checked: l.sort === k, onSelect: () => { l.sort = k; commit(); }})),
-      {type: 'sep'}, {type: 'title', label: 'Pinned cards always stay on top'}
-    ])},
-    {label: 'Copy list', icon: 'copy', onSelect: () => openMenu(anchor, [
-      {type: 'title', label: `Copy “${l.title}” to`},
-      ...state.categories.map(o => ({label: o === c ? `${o.name} (this board)` : o.name, dot: o.color, onSelect: () => {
-        const cp = cloneList(l); if (o === c) { cp.title = l.title + ' (copy)'; o.lists.splice(o.lists.indexOf(l) + 1, 0, cp); } else o.lists.push(cp);
-        commit(); toast(`Copied to ${o.name}`, o === c ? {} : {action: 'Open', onAction: () => { state.active = o.id; commit(); }});
-      }}))
-    ])},
-    {label: 'Move to another category', icon: 'move', disabled: !others.length, onSelect: () => openMenu(anchor, [
-      {type: 'title', label: `Move “${l.title}” to`},
-      ...others.map(o => ({label: o.name, dot: o.color, onSelect: () => {
-        c.lists.splice(c.lists.indexOf(l), 1); o.lists.push(l); commit();
-        toast(`Moved to ${o.name}`, {action: 'Open', onAction: () => { state.active = o.id; commit(); }});
-      }}))
-    ])},
-    {label: doneN ? `Clear ${doneN} completed` : 'Clear completed', icon: 'doneAll', disabled: !doneN,
-      onSelect: () => withUndo(`Removed ${doneN} completed card${doneN > 1 ? 's' : ''}`, () => { l.cards = l.cards.filter(k => !k.done); })},
+    {type: 'title', label: 'Add divider'},
+    ...DIVIDER_PRESETS.map(label => ({label, icon: 'blank', onSelect: () => addDivider(label)})),
     {type: 'sep'},
-    {label: 'Delete list', icon: 'trash', danger: true, hint: l.cards.length ? `${l.cards.length} card${l.cards.length > 1 ? 's' : ''} will be deleted` : '',
-      onSelect: () => withUndo(`Deleted “${l.title}”`, () => { c.lists.splice(c.lists.indexOf(l), 1); })}
+    {label: 'Custom label…', icon: 'pencil', onSelect: () => promptSheet({title: 'New divider', placeholder: 'e.g. Waiting on', confirm: 'Add', onSave: addDivider})}
   ]);
 }
 
@@ -2564,7 +2474,6 @@ function appMenu(anchor) {
   const s = state.settings;
   const ns = notifStatus();
   openMenu(anchor, [
-    {label: 'Move finished cards to Done', icon: 'move', toggle: true, checked: s.autoMoveDone, onSelect: () => { s.autoMoveDone = !s.autoMoveDone; commit(); }},
     {label: 'Hide completed cards', icon: 'doneAll', toggle: true, checked: s.hideDone, onSelect: () => { s.hideDone = !s.hideDone; commit(); }},
     {label: 'Theme', hint: themeName(s.theme), icon: 'palette', onSelect: openThemeSheet},
     {label: 'Jobs', hint: state.jobs.length ? state.jobs.map(j => j.name).join(', ') : 'For tracking work hours', icon: 'briefcase', onSelect: openJobsSheet},
@@ -2584,7 +2493,7 @@ function appMenu(anchor) {
       text: 'Every category, list, card, job and logged hour stored in this browser will be deleted. Back up first if you might need them.',
       confirm: 'Erase', onConfirm: () => {
         const c = newCategory('My lists', 'ultra');
-        state = normalize({version: 2, active: c.id, categories: [c], jobs: [], entries: [], pomo: state.pomo, settings: state.settings});
+        state = normalize({version: 3, active: c.id, categories: [c], jobs: [], entries: [], pomo: state.pomo, settings: state.settings});
         commit(); toast('Everything erased');
       }})}
   ]);
@@ -3062,7 +2971,7 @@ function linkTask(j, key, cardId) {
 }
 function cardOptionsHTML(sel) {
   return state.categories.map(c => {
-    const opts = c.lists.flatMap(l => l.cards.filter(k => !k.done || k.id === sel).map(k => `<option value="${k.id}"${k.id === sel ? ' selected' : ''}>${esc(k.title)}</option>`));
+    const opts = catCards(c).filter(k => !k.done || k.id === sel).map(k => `<option value="${k.id}"${k.id === sel ? ' selected' : ''}>${esc(k.title)}</option>`);
     return opts.length ? `<optgroup label="${esc(c.name)}">${opts.join('')}</optgroup>` : '';
   }).join('');
 }
@@ -3090,7 +2999,7 @@ function focusHTML() {
   const done = p.round % s.every || (p.round && p.phase === 'long' ? s.every : 0);
   const dots = Array.from({length: s.every}, (_, i) => `<i class="${i < done ? 'on' : ''}"></i>`).join('');
   const cardOpts = state.categories.map(c => {
-    const opts = c.lists.flatMap(l => l.cards.filter(k => !k.done || k.id === p.cardId).map(k => `<option value="${k.id}"${k.id === p.cardId ? ' selected' : ''}>${esc(k.title)}</option>`));
+    const opts = catCards(c).filter(k => !k.done || k.id === p.cardId).map(k => `<option value="${k.id}"${k.id === p.cardId ? ' selected' : ''}>${esc(k.title)}</option>`);
     return opts.length ? `<optgroup label="${esc(c.name)}">${opts.join('')}</optgroup>` : '';
   }).join('');
   const linkedJob = p.cardId ? jobById(jobForCard(p.cardId)) : null;
@@ -3596,7 +3505,7 @@ function openJobEditor(id, {linkCat = null, back} = {}) {
         close();
         withUndo(`Deleted “${ex.name}”. Its hours are kept under No job.`, () => {
           state.entries.forEach(e => { if (e.jobId === ex.id) e.jobId = null; });
-          state.categories.forEach(c => { if (c.jobId === ex.id) delete c.jobId; c.lists.forEach(l => l.cards.forEach(k => { if (k.jobId === ex.id) delete k.jobId; })); });
+          state.categories.forEach(c => { if (c.jobId === ex.id) delete c.jobId; catCards(c).forEach(k => { if (k.jobId === ex.id) delete k.jobId; }); });
           state.wtasks = state.wtasks.filter(w => w.jobId !== ex.id);
           state.jobs.splice(state.jobs.indexOf(ex), 1);
           if (state.settings.workJob === ex.id) state.settings.workJob = state.jobs[0] ? state.jobs[0].id : null;
@@ -3856,7 +3765,7 @@ async function exportHours({job, from, to, fmt}) {
 }
 
 /* ================= tags ================= */
-const allCards = fn => state.categories.forEach(c => c.lists.forEach(l => l.cards.forEach(fn)));
+const allCards = fn => state.categories.forEach(c => catCards(c).forEach(fn));
 const sortedTags = ids => state.tags.filter(t => ids.includes(t.id));
 const tagLabel = t => t.name || TAG_COLOR_NAME[t.color];
 function tagGroups() {
@@ -4026,10 +3935,10 @@ function occursOn(ev, key) {
 function itemsOn(key) {
   const out = [];
   state.events.forEach(ev => { if (occursOn(ev, key)) out.push({kind: 'event', id: ev.id, title: ev.title, allDay: ev.allDay, time: ev.allDay ? '' : ev.start, end: ev.allDay ? '' : ev.end, color: `var(--l-${ev.color})`, done: false, sub: ev.repeat !== 'none' ? REPEATS.find(r => r[0] === ev.repeat)[1] + (ev.until ? ` until ${fmtDate(parseISO(ev.until))}` : '') : ev.endDate ? `Until ${fmtDate(parseISO(ev.endDate))}` : ''}); });
-  state.categories.forEach(c => c.lists.forEach(l => l.cards.forEach(k => {
-    if (k.due === key) out.push({kind: 'card', id: k.id, title: k.title, allDay: !k.dueTime, time: k.dueTime, end: '', color: `var(--l-${c.color})`, done: k.done, prio: k.priority, sub: `${c.name} · ${l.title}${k.repeat !== 'none' ? ' · ↻ ' + repeatName(k.repeat) : ''}`});
+  state.categories.forEach(c => catCards(c).forEach(k => {
+    if (k.due === key) out.push({kind: 'card', id: k.id, title: k.title, allDay: !k.dueTime, time: k.dueTime, end: '', color: `var(--l-${c.color})`, done: k.done, prio: k.priority, sub: `${c.name}${k.repeat !== 'none' ? ' · ↻ ' + repeatName(k.repeat) : ''}`});
     else if (!k.done && k.due && k.repeat !== 'none' && key > k.due && repeatHits(k.repeat, k.due, key)) out.push({kind: 'card', id: k.id, title: k.title, allDay: !k.dueTime, time: k.dueTime, end: '', color: `var(--l-${c.color})`, done: false, ghost: true, prio: k.priority, sub: `Repeats ${repeatName(k.repeat)} · ${c.name}`});
-  })));
+  }));
   return out.sort((a, b) => (b.allDay - a.allDay) || a.time.localeCompare(b.time) || (a.done - b.done));
 }
 const monthKey = ts => dayKey(ts).slice(0, 7);
@@ -4153,18 +4062,16 @@ function openEventEditor(id, {date, back} = {}) {
 function openCalTaskSheet(date, back) {
   let catId = state.active, prio = 0;
   openSheet((inner, close) => {
-    const listOptions = () => { const c = state.categories.find(x => x.id === catId) || currentCat(); const dl = doneListOf(c); return c.lists.filter(l => l !== dl).map(l => `<option value="${l.id}">${esc(l.title)}</option>`).join('') || '<option value="">(new list)</option>'; };
     inner.innerHTML = `<form novalidate><h2 class="sheet-title sheet-drag">New task</h2><div class="form-grid">`
       + `<div class="fld full"><label for="ct-title">Task</label><input id="ct-title" class="field" maxlength="300" placeholder="What needs doing?" autocomplete="off"></div>`
-      + `<div class="fld"><label for="ct-cat">Board</label><span class="select-wrap block"><select id="ct-cat" class="select">${state.categories.map(c => `<option value="${c.id}"${c.id === catId ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></span></div>`
-      + `<div class="fld"><label for="ct-list">List</label><span class="select-wrap block"><select id="ct-list" class="select">${listOptions()}</select></span></div>`
+      + `<div class="fld full"><label for="ct-cat">Board</label><span class="select-wrap block"><select id="ct-cat" class="select">${state.categories.map(c => `<option value="${c.id}"${c.id === catId ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></span></div>`
       + `<div class="fld"><label for="ct-date">Due</label><input id="ct-date" type="date" class="field" value="${date}"></div>`
       + `<div class="fld"><label for="ct-time">Time (optional)</label><input id="ct-time" type="time" class="field"></div>`
       + `<div class="fld full"><label for="ct-repeat">Repeat</label><span class="select-wrap block"><select id="ct-repeat" class="select">${REPEATS.map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select></span></div>`
       + `<div class="fld full"><span class="lbl">Priority</span><div class="chips wrap">${PRIORITY.map((p, i) => `<button type="button" class="fchip${i === 0 ? ' on' : ''}" data-p="${i}">${p ? `<span class="tab-dot" style="--c:var(--l-${p.c})"></span>${p.name}` : 'None'}</button>`).join('')}</div></div>`
       + `</div><p class="sheet-hint" id="ct-msg" aria-live="polite">The task goes onto the board you pick and shows here on its due date.</p>`
       + `<div class="sheet-actions"><button type="button" class="btn" data-x="cancel">Cancel</button><button type="submit" class="btn primary">Add task</button></div></form>`;
-    inner.addEventListener('change', e => { if (e.target.id === 'ct-cat') { catId = e.target.value; $('#ct-list', inner).innerHTML = listOptions(); } });
+    inner.addEventListener('change', e => { if (e.target.id === 'ct-cat') catId = e.target.value; });
     inner.addEventListener('click', e => {
       const pb = e.target.closest('[data-p]');
       if (pb) { prio = +pb.dataset.p; $$('[data-p]', inner).forEach(x => x.classList.toggle('on', x === pb)); return; }
@@ -4175,11 +4082,9 @@ function openCalTaskSheet(date, back) {
       const title = $('#ct-title', inner).value.replace(/\s+/g, ' ').trim();
       if (!title) { $('#ct-msg', inner).textContent = 'Write what the task is.'; return; }
       const c = state.categories.find(x => x.id === catId);
-      let l = findList($('#ct-list', inner).value); l = l ? l.list : null;
-      if (!l) { l = newList('To do'); c.lists.unshift(l); }
       const due = $('#ct-date', inner).value;
-      l.cards.push(newCard(title, {due, dueTime: due ? $('#ct-time', inner).value : '', priority: prio, repeat: due ? $('#ct-repeat', inner).value : 'none'}));
-      haptic('success'); commit(); toast(`Added to ${c.name} · ${l.title}`);
+      c.seq.push(newCard(title, {due, dueTime: due ? $('#ct-time', inner).value : '', priority: prio, repeat: due ? $('#ct-repeat', inner).value : 'none'}));
+      haptic('success'); commit(); toast(`Added to ${c.name}`);
       close(); if (back) back();
     });
     $('#ct-title', inner).focus({preventScroll: true});
@@ -4240,10 +4145,10 @@ async function aiFetchModels(prov, force) {
 const fn = (name, description, properties = {}, required = []) => ({type: 'function', function: {name, description, parameters: {type: 'object', properties, required}}});
 const S = (d, extra = {}) => ({type: 'string', description: d, ...extra});
 const AI_TOOLS = [
-  fn('find_cards', 'Search cards by text and/or filters. Returns up to 30 matches with ids.', {query: S('Words to look for in titles and notes (optional)'), board: S('Board name (optional)'), list: S('List name (optional)'), due_before: S('YYYY-MM-DD (optional)'), include_done: {type: 'boolean'}}),
+  fn('find_cards', 'Search cards by text and/or filters. Returns up to 30 matches with ids.', {query: S('Words to look for in titles and notes (optional)'), board: S('Board name (optional)'), due_before: S('YYYY-MM-DD (optional)'), include_done: {type: 'boolean'}}),
   fn('get_card', 'Read one card in full (notes, checklist, tags).', {card_id: S('Card id')}, ['card_id']),
-  fn('create_card', 'Create a card (task) on a board. If the list does not exist it is created.', {
-    board: S('Board name; defaults to the board the user is looking at'), list: S('List name; defaults to the first open list'), title: S('Card title'),
+  fn('create_card', 'Create a card (task) on a board.', {
+    board: S('Board name; defaults to the board the user is looking at'), title: S('Card title'),
     description: S('Notes (optional)'), due_date: S('YYYY-MM-DD (optional)'), due_time: S('HH:MM 24h (optional)'),
     priority: S('none, low, medium, high or urgent', {enum: ['none', 'low', 'medium', 'high', 'urgent']}), tags: {type: 'array', items: {type: 'string'}, description: 'Tag names (optional)'},
     checklist: {type: 'array', items: {type: 'string'}, description: 'Checklist items (optional)'}, pinned: {type: 'boolean'},
@@ -4253,9 +4158,9 @@ const AI_TOOLS = [
     due_date: S('YYYY-MM-DD, or empty string to clear'), due_time: S('HH:MM, or empty string to clear'), priority: S('none, low, medium, high or urgent', {enum: ['none', 'low', 'medium', 'high', 'urgent']}),
     add_tags: {type: 'array', items: {type: 'string'}}, remove_tags: {type: 'array', items: {type: 'string'}},
     add_checklist_items: {type: 'array', items: {type: 'string'}}, done: {type: 'boolean'}, pinned: {type: 'boolean'},
-    move_to_list: S('List name to move the card to'), move_to_board: S('Board name to move the card to'),
+    move_to_board: S('Board name to move the card to'),
     repeat: S('none, daily, weekdays, weekly, biweekly, monthly or yearly (needs a due date)', {enum: REPEAT_KEYS})}, ['card_id']),
-  fn('create_list', 'Create a list (column) on a board.', {board: S('Board name'), title: S('List title')}, ['title']),
+  fn('create_divider', "Add a labeled divider to a board, to organize its cards into sections (e.g. a day name or a heading like \"Waiting on\"). A divider is not a card - it just groups what comes after it.", {board: S('Board name'), label: S('Divider label, e.g. a day name or a short section heading')}, ['label']),
   fn('create_event', 'Add a calendar event.', {title: S('Event title'), date: S('YYYY-MM-DD'), start_time: S('HH:MM (omit for all-day)'), end_time: S('HH:MM (optional)'),
     repeat: S('none, daily, weekdays, weekly, biweekly, monthly or yearly', {enum: REPEAT_KEYS}), repeat_until: S('Last date the event repeats, YYYY-MM-DD (optional)'), reminder_minutes_before: {type: 'integer', description: 'Minutes before the start to notify; omit for no reminder'}, notes: S('Notes (optional)')}, ['title', 'date']),
   fn('get_event', 'Read one calendar event in full.', {event_id: S('Event id')}, ['event_id']),
@@ -4273,12 +4178,6 @@ function aiBoard(x) {
   if (!x) return currentCat();
   return state.categories.find(c => c.id === x || norm(c.name) === norm(x)) || state.categories.find(c => norm(c.name).includes(norm(x)) || norm(x).includes(norm(c.name))) || null;
 }
-function aiList(c, x, create) {
-  if (!x) return c.lists.find(l => !l.collapsed && l !== doneListOf(c)) || c.lists[0] || (create ? (c.lists.push(newList('To do')), c.lists[c.lists.length - 1]) : null);
-  let l = c.lists.find(l => l.id === x || norm(l.title) === norm(x)) || c.lists.find(l => norm(l.title).includes(norm(x)));
-  if (!l && create) { l = newList(String(x).slice(0, 80)); c.lists.push(l); }
-  return l || null;
-}
 function aiTags(names) {
   return (names || []).map(n => {
     const name = String(n).trim().slice(0, 28); if (!name) return null;
@@ -4287,19 +4186,19 @@ function aiTags(names) {
     return t.id;
   }).filter(Boolean);
 }
-const cardBrief = f => ({id: f.card.id, title: f.card.title, board: f.cat.name, list: f.list.title, due: f.card.due || null, due_time: f.card.dueTime || null, priority: PRIO_NAMES[f.card.priority], done: f.card.done, pinned: f.card.pinned, tags: sortedTags(f.card.tags).map(tagLabel)});
+const cardBrief = f => ({id: f.card.id, title: f.card.title, board: f.cat.name, due: f.card.due || null, due_time: f.card.dueTime || null, priority: PRIO_NAMES[f.card.priority], done: f.card.done, pinned: f.card.pinned, tags: sortedTags(f.card.tags).map(tagLabel)});
 const validDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') && !isNaN(parseISO(d));
 const validTime = t => /^([01]\d|2[0-3]):[0-5]\d$/.test(t || '');
 function aiRun(name, a) {
   switch (name) {
     case 'find_cards': {
       const q = norm(a.query), out = [];
-      state.categories.forEach(c => { if (a.board && aiBoard(a.board) !== c) return; c.lists.forEach(l => { if (a.list && norm(l.title) !== norm(a.list)) return; l.cards.forEach((k, index) => {
+      state.categories.forEach(c => { if (a.board && aiBoard(a.board) !== c) return; catCards(c).forEach(k => {
         if (!a.include_done && k.done) return;
         if (q && !(norm(k.title).includes(q) || norm(k.desc).includes(q))) return;
         if (a.due_before && !(k.due && k.due <= a.due_before)) return;
-        out.push(cardBrief({cat: c, list: l, card: k, index}));
-      }); }); });
+        out.push(cardBrief({cat: c, card: k}));
+      }); });
       return {count: out.length, cards: out.slice(0, 30)};
     }
     case 'get_card': {
@@ -4308,13 +4207,12 @@ function aiRun(name, a) {
     }
     case 'create_card': {
       const c = aiBoard(a.board); if (!c) return {error: `No board called "${a.board}". Boards: ${state.categories.map(x => x.name).join(', ')}`};
-      const l = aiList(c, a.list, true);
       const k = newCard(String(a.title || 'Untitled').slice(0, 300), {desc: String(a.description || ''), due: validDate(a.due_date) ? a.due_date : '', priority: Math.max(0, PRIO_NAMES.indexOf(norm(a.priority))), pinned: !!a.pinned,
-        tags: aiTags(a.tags), checklist: (a.checklist || []).map(t => ({id: uid(), text: String(t).slice(0, 200), done: false, due: '', dueTime: '', note: '', sub: []}))});
+        tags: aiTags(a.tags), checklist: (a.checklist || []).map(t => ({id: uid(), text: String(t).slice(0, 200), done: false, due: '', dueTime: '', note: ''}))});
       if (k.due && validTime(a.due_time)) k.dueTime = a.due_time;
       if (k.due && REPEAT_KEYS.includes(a.repeat)) k.repeat = a.repeat;
-      l.cards.push(k);
-      return {ok: true, card_id: k.id, board: c.name, list: l.title};
+      c.seq.push(k);
+      return {ok: true, card_id: k.id, board: c.name};
     }
     case 'update_card': {
       const f = findCard(a.card_id); if (!f) return {error: 'No card with that id. Use find_cards first.'};
@@ -4329,20 +4227,20 @@ function aiRun(name, a) {
       if (a.priority) k.priority = Math.max(0, PRIO_NAMES.indexOf(norm(a.priority)));
       if (a.add_tags) aiTags(a.add_tags).forEach(id => { if (!k.tags.includes(id)) k.tags.push(id); });
       if (a.remove_tags) { const rm = new Set(state.tags.filter(t => a.remove_tags.some(n => norm(n) === norm(t.name))).map(t => t.id)); k.tags = k.tags.filter(id => !rm.has(id)); }
-      if (a.add_checklist_items) a.add_checklist_items.forEach(t => k.checklist.push({id: uid(), text: String(t).slice(0, 200), done: false, due: '', dueTime: '', note: '', sub: []}));
+      if (a.add_checklist_items) a.add_checklist_items.forEach(t => k.checklist.push({id: uid(), text: String(t).slice(0, 200), done: false, due: '', dueTime: '', note: ''}));
       if (typeof a.pinned === 'boolean') k.pinned = a.pinned;
       if (typeof a.done === 'boolean' && a.done !== k.done) setDone(k, a.done);
-      if (a.move_to_board || a.move_to_list) {
-        const c = a.move_to_board ? aiBoard(a.move_to_board) : findCard(k.id).cat; if (!c) return {error: `No board called "${a.move_to_board}"`};
-        const to = aiList(c, a.move_to_list, true), now = findCard(k.id);
-        if (to !== now.list) { now.list.cards.splice(now.index, 1); to.cards.push(k); }
+      if (a.move_to_board) {
+        const c = aiBoard(a.move_to_board); if (!c) return {error: `No board called "${a.move_to_board}"`};
+        const now = findCard(k.id);
+        if (c !== now.cat) moveCardToCategory(k, now.cat, c);
       }
       return {ok: true, card: cardBrief(findCard(k.id))};
     }
-    case 'create_list': {
+    case 'create_divider': {
       const c = aiBoard(a.board); if (!c) return {error: `No board called "${a.board}"`};
-      const l = newList(String(a.title).slice(0, 80)); c.lists.push(l);
-      return {ok: true, list_id: l.id, board: c.name};
+      const d = newDivider(String(a.label).slice(0, 80)); c.seq.push(d);
+      return {ok: true, divider_id: d.id, board: c.name};
     }
     case 'create_event': {
       if (!validDate(a.date)) return {error: 'date must be YYYY-MM-DD'};
@@ -4386,7 +4284,7 @@ function aiRun(name, a) {
   }
   return {error: 'Unknown tool'};
 }
-const AI_LABEL = {update_event: 'Updated event', create_card: 'Created card', update_card: 'Updated card', create_list: 'Created list', create_event: 'Added event', set_reminder: 'Set reminder'};
+const AI_LABEL = {update_event: 'Updated event', create_card: 'Created card', update_card: 'Updated card', create_divider: 'Added divider', create_event: 'Added event', set_reminder: 'Set reminder'};
 function aiCtxPrompt() {
   const ctx = aiChat.ctx; if (!ctx) return '';
   let data = null;
@@ -4404,10 +4302,7 @@ ${JSON.stringify(data)}
 function aiSystemPrompt() {
   const now = new Date(), tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const week = Array.from({length: 8}, (_, i) => { const d = new Date(); d.setDate(d.getDate() + i); return `${i === 0 ? 'today' : i === 1 ? 'tomorrow' : d.toLocaleDateString('en-GB', {weekday: 'long'})} = ${dayKey(d.getTime())}`; }).join(', ');
-  const boards = state.categories.map(c => {
-    const dl = doneListOf(c);
-    return `- Board "${c.name}"${c.id === state.active ? ' (currently open)' : ''}: ` + c.lists.map(l => `"${l.title}"${l === dl ? ' [Done column]' : ''} (${l.cards.filter(k => !k.done).length} open${l.sort !== 'manual' ? ', sorted by ' + l.sort : ''})`).join(', ');
-  }).join('\n');
+  const boards = state.categories.map(c => `- Board "${c.name}"${c.id === state.active ? ' (currently open)' : ''}: ${openCount(c)} open card${openCount(c) === 1 ? '' : 's'}${c.sort !== 'manual' ? ', sorted by ' + c.sort : ''}`).join('\n');
   const tagGroupsText = tagGroups().map(g => `${g}: ${state.tags.filter(t => t.group === g && t.name).map(t => t.name).join(', ')}`).join('; ');
   const upcoming = [];
   for (let i = 0; i < 7 && upcoming.length < 15; i++) { const d = new Date(); d.setDate(d.getDate() + i); const key = dayKey(d.getTime()); itemsOn(key).filter(it => !it.done).forEach(it => upcoming.push(`${key} ${it.allDay ? '' : it.time + ' '}${it.kind === 'event' ? 'event' : 'task'}: ${it.title}`)); }
@@ -4417,9 +4312,9 @@ function aiSystemPrompt() {
 You are the built-in assistant of Docket, the user's personal to-do, calendar and work-hours app. You help by actually changing their data with the tools below, and by answering questions about it. You are practical, quick and careful.
 
 # How Docket works
-- Boards (also called categories) are the tabs at the top. Each board has lists (columns); lists hold cards (tasks).
-- A card has: title, notes (description), checklist, tags, priority (none/low/medium/high/urgent), pin (pinned cards stay at the top of their list), due date with an optional time, and done state.
-- Finishing a card (done=true) moves it to its board's Done column; un-finishing moves it back. Lists can be sorted manually, by priority or by due date.
+- Boards (also called categories) are the tabs at the top. Each board is a single column of cards (tasks), top to bottom. Dividers are optional labeled section headings inside that column (e.g. a day name, or "Waiting on") - they organize cards, but are not cards themselves and don't hold data of their own.
+- A card has: title, notes (description), checklist, tags, priority (none/low/medium/high/urgent), pin (pinned cards stay at the top), due date with an optional time, and done state.
+- Finishing a card (done=true) automatically sinks it to a "Completed" section at the bottom of its board, most-recently-finished first; un-finishing returns it to its normal place. A board's cards can be sorted manually, by priority or by due date.
 - Tags are shared by all boards and grouped (Priority, Status, Type, Effort, Area, Your labels). Unknown tag names are created automatically, so prefer existing tags.
 - The calendar shows cards on their due date and separate events (all-day or timed, can repeat, can have a reminder).
 - Notifications: cards remind at their due time (or in the morning if they have no time), events remind at their own reminder, and set_reminder sends a notification at an exact time.
@@ -4450,7 +4345,7 @@ ${boards}
 - Keep the user's own wording and language for names and titles.
 
 # Limits
-- You cannot delete boards, lists, cards or events; tell the user how to do it themselves (open the card → Delete card, or the list's ⋯ menu).
+- You cannot delete boards, dividers, cards or events; tell the user how to do it themselves (open the card → Delete card, tap a divider's × , or the board's ⋯ menu).
 - You cannot browse the internet or see files. Say so if asked.
 - Never claim you did something you did not do with a tool. If a tool returns an error, fix the call or explain the problem.
 
@@ -4498,8 +4393,8 @@ async function aiSend(text, redraw) {
         try { result = aiRun(c.function && c.function.name, args); } catch (e) { result = {error: String(e.message || e)}; }
         if (result && result.ok && AI_LABEL[c.function.name]) {
           changed = true;
-          const what = args.title || args.message || (result.card && result.card.title) || (result.event && result.event.title) || '';
-          aiChat.log.push({who: 'act', text: `${AI_LABEL[c.function.name]}${what ? ': ' + what : ''}${result.board ? ` (${result.board}${result.list ? ' · ' + result.list : ''})` : ''}${result.at ? ' · ' + result.at : ''}`});
+          const what = args.title || args.label || args.message || (result.card && result.card.title) || (result.event && result.event.title) || '';
+          aiChat.log.push({who: 'act', text: `${AI_LABEL[c.function.name]}${what ? ': ' + what : ''}${result.board ? ` (${result.board})` : ''}${result.at ? ' · ' + result.at : ''}`});
         }
         aiChat.messages.push({role: 'tool', tool_call_id: c.id, content: JSON.stringify(result).slice(0, 6000)});
       }
@@ -4692,7 +4587,7 @@ function openCard(id) {
     const back = () => openCard(id);
     const draw = () => {
       const f = findCard(id); if (!f) { close(); return; }
-      const {cat: c, list: l, card: k} = f;
+      const {cat: c, card: k} = f;
       const st = inner.scrollTop, now = Date.now();
       const doneN = k.checklist.filter(i => i.done).length, tot = k.checklist.length;
       const due = k.due ? dueInfo(k.due, k.done) : null;
@@ -4707,8 +4602,8 @@ function openCard(id) {
         + `<button type="button" class="icon-btn ask-ai" data-cs="ai" aria-label="Ask the assistant about this card" title="Ask AI about this card">${icon('sparkle')}</button>`
         + `<button type="button" class="icon-btn star-btn${k.pinned ? ' on' : ''}" data-cs="pin" aria-pressed="${k.pinned}" aria-label="${k.pinned ? 'Unpin' : 'Pin to top'}" title="${k.pinned ? 'Unpin' : 'Pin to top of the column'}">${icon(k.pinned ? 'starFill' : 'star')}</button>`
         + `<button type="button" class="icon-btn" data-cs="close" aria-label="Close">${icon('x')}</button></div>`
-        + `<div class="cs-where"><span class="tab-dot" style="--c:var(--l-${c.color})"></span><label for="cs-move" class="sr-only">List</label><span class="select-wrap"><select id="cs-move" class="select">`
-        + state.categories.map(cc => `<optgroup label="${esc(cc.name)}">` + cc.lists.map(ll => `<option value="${ll.id}"${ll.id === l.id ? ' selected' : ''}>${esc(ll.title)}</option>`).join('') + `</optgroup>`).join('')
+        + `<div class="cs-where"><span class="tab-dot" style="--c:var(--l-${c.color})"></span><label for="cs-move" class="sr-only">Board</label><span class="select-wrap"><select id="cs-move" class="select">`
+        + state.categories.map(cc => `<option value="${cc.id}"${cc.id === c.id ? ' selected' : ''}>${esc(cc.name)}</option>`).join('')
         + `</select></span></div>`
         + `<section class="cs-sec"><div class="cs-sec-head"><h3>Time</h3><span class="mono muted">${live ? `<span data-since="${r.start}" data-base="${tracked}">${clock(tracked + now - r.start)}</span>` : tracked ? fmtHM(tracked) + ' total' : ''}</span></div>`
         + `<div class="time-row">${live ? `<button type="button" class="btn stop" data-cs="track">${icon('stop')}Stop timer</button>` : `<button type="button" class="btn primary" data-cs="track">${icon('play')}Start timer</button>`}`
@@ -4795,7 +4690,7 @@ function openCard(id) {
         case 'cl-del': k.checklist = k.checklist.filter(i => i.id !== b.dataset.i); if (ui.clOpen === b.dataset.i) ui.clOpen = null; break;
         case 'cl-expand': ui.clOpen = ui.clOpen === b.dataset.i ? null : b.dataset.i; haptic('select'); break;
         case 'cl-due-clear': { const it = k.checklist.find(i => i.id === b.dataset.i); if (it) { it.due = ''; it.dueTime = ''; } break; }
-        case 'delete': close(); withUndo('Card deleted', () => { const r = running(); if (r && r.cardId === k.id) stopTracking(); f.list.cards.splice(f.list.cards.indexOf(k), 1); }); return;
+        case 'delete': close(); withUndo('Card deleted', () => { const r = running(); if (r && r.cardId === k.id) stopTracking(); f.cat.seq.splice(f.cat.seq.indexOf(k), 1); }); return;
         default: return;
       }
       save(); scheduleRender(); draw();
@@ -4823,12 +4718,11 @@ function openCard(id) {
       else if (t.id === 'cs-repeat') { f.card.repeat = f.card.due ? t.value : 'none'; haptic('select'); save(); scheduleRender(); draw(); }
       else if (t.id === 'cs-job') { if (t.value) f.card.jobId = t.value; else delete f.card.jobId; save(); draw(); }
       else if (t.id === 'cs-move') {
-        const to = findList(t.value);
-        if (to && to.list !== f.list) {
-          f.list.cards.splice(f.index, 1); to.list.cards.push(f.card);
-          if (to.list.collapsed) to.list.collapsed = false;
+        const destC = state.categories.find(x => x.id === t.value);
+        if (destC && destC !== f.cat) {
+          moveCardToCategory(f.card, f.cat, destC);
           commit(); draw();
-          toast(`Moved to ${to.list.title}${to.cat !== f.cat ? ` in ${to.cat.name}` : ''}`);
+          toast(`Moved to ${destC.name}`);
         }
       }
     });
@@ -4958,11 +4852,9 @@ window.docketDebug = {
      pointer drag (used by tests/smoke20.js; jsdom can't simulate elementFromPoint/hold timing) */
   moveCardToCategory: (cardId, catId) => {
     const f = findCard(cardId), destCat = state.categories.find(c => c.id === catId);
-    if (!f || !destCat) return null;
-    const destList = moveCardToCategory(f.card, f.list, destCat);
-    if (!destList) return null;
+    if (!f || !destCat || !moveCardToCategory(f.card, f.cat, destCat)) return null;
     save(); render();
-    return destList.id;
+    return destCat.id;
   }
 };
 const activeTab = tabsEl.querySelector('.tab.is-active'); if (activeTab) activeTab.scrollIntoView({inline: 'nearest', block: 'nearest'});
