@@ -505,11 +505,46 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 .cal-open .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
 .cal-open b{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cal-open small{display:flex;align-items:center;gap:6px;font:500 12px/1.2 var(--font-mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* B37: Day/Week/Month switcher - reuses the same segmented-control look as the time panel's
+   Focus/Hours/Stats tabs (.seg), just under a different parent */
+.cal-view-seg{margin:0 0 14px}
+/* B37: Week view - 7 columns, each a compact version of the month view's day-list rows */
+.cal-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;align-items:start}
+.cal-weekcol{min-width:0;display:flex;flex-direction:column;border-radius:9px;background:var(--hover);overflow:hidden}
+.cal-weekcol.today{box-shadow:inset 0 0 0 2px var(--accent)}
+.cal-weekcol-head{display:flex;flex-direction:column;align-items:center;gap:1px;padding:8px 2px 6px;border:0;background:none;color:var(--ink);cursor:pointer;font:600 10.5px/1 var(--font-mono);text-transform:uppercase;letter-spacing:.04em}
+.cal-weekcol-head .num{font:650 15px/1.3 var(--font-display);text-transform:none}
+.cal-weekcol.today .cal-weekcol-head .num{color:var(--accent)}
+.cal-weekcol.sel .cal-weekcol-head{background:var(--card)}
+.cal-weekcol-body{flex:1;min-height:40px;padding:0 2px 4px}
+.cal-weekcol-body .cal-row{min-height:0;padding:5px 2px;gap:0;flex-direction:column;align-items:stretch;border-bottom:1px solid var(--line)}
+.cal-weekcol-body .cal-open{padding:1px 0;gap:2px;flex-direction:column;align-items:flex-start}
+.cal-weekcol-body .cal-time{width:auto;font-size:10px}
+.cal-weekcol-body .t small{display:none}
+.cal-weekcol-body .empty{padding:8px 2px;font-size:11.5px}
+/* B37: Day (with hours) view - an all-day header strip above a 00:00-23:00 scrollable timeline */
+.cal-allday{display:flex;align-items:flex-start;gap:10px;padding:4px 0 10px;border-bottom:1px solid var(--line)}
+.cal-allday .lbl{flex:none;padding-top:9px;font:600 11px/1 var(--font-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.cal-allday-items{flex:1;min-width:0}
+.cal-dayscroll{max-height:62vh;overflow-y:auto;margin-top:10px;border-top:1px solid var(--line)}
+.cal-hours{position:relative}
+.cal-hour{height:56px;padding-left:54px;border-top:1px solid var(--line)}
+.cal-hour:first-child{border-top:0}
+.cal-hour-label{display:block;padding:3px 8px 0 0;margin-left:-54px;width:54px;float:left;font:500 10.5px/1 var(--font-mono);color:var(--muted);text-align:right}
+.cal-blocks{position:absolute;top:0;left:54px;right:4px;bottom:0}
+.cal-block{position:absolute;left:0;right:0;display:flex;flex-direction:column;justify-content:center;gap:1px;padding:3px 8px;border:0;border-left:3px solid var(--c);border-radius:6px;background:color-mix(in srgb,var(--c) 16%,var(--card));color:var(--ink);text-align:left;overflow:hidden;cursor:pointer}
+.cal-block b{font-weight:600;font-size:12.5px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-block small{display:block;font:500 10.5px/1 var(--font-mono);color:var(--muted)}
+.cal-block.done{opacity:.5}
+.cal-block.done b{text-decoration:line-through}
+.cal-block.ghost{opacity:.55;font-style:italic}
 @media (min-width:900px) and (hover:hover) and (pointer:fine){
   .sheet.cal{width:min(940px,calc(100vw - 48px))}
   .cal-day{min-height:96px}
   .cal-items i{height:auto;padding:1px 6px;border-radius:4px;background:color-mix(in srgb,var(--c) 16%,transparent);color:color-mix(in srgb,var(--c) 70%,var(--ink));font:500 11.5px/1.4 var(--font-ui)}
   .cal-items i.ev{background:var(--c);color:#fff}
+  .cal-week{gap:10px}
+  .cal-dayscroll{max-height:66vh}
 }
 /* notification status */
 .health{list-style:none;margin:2px 0 4px;padding:0}
@@ -621,8 +656,8 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 <div id="app">
   <header class="top">
     <nav class="tabs" id="tabs" aria-label="Categories"></nav>
-    <button type="button" class="icon-btn top-btn" id="feat-btn" data-action="features" aria-label="Assistant, notes, focus/work and calendar"></button>
-    <button type="button" class="icon-btn" id="app-menu-btn" data-action="menu" aria-label="Settings and backup"></button>
+    <button type="button" class="icon-btn top-btn" id="cal-btn" data-action="calendar" aria-label="Calendar" title="Calendar (C)"></button>
+    <button type="button" class="icon-btn" id="app-menu-btn" data-action="menu" aria-label="Assistant, notes, focus/work and settings"></button>
   </header>
   <main class="board" id="board" aria-label="Lists"></main>
 </div>
@@ -928,7 +963,7 @@ const themeName = t => (THEME_LIST.find(x => x[0] === t) || THEME_LIST[0])[1];
 })();
 
 /* ================= state ================= */
-const newCard = (title, extra = {}) => Object.assign({id: uid(), title, desc: '', done: false, tags: [], due: '', dueTime: '', dueFromDivider: false, priority: 0, pinned: false, checklist: [], created: Date.now()}, extra);
+const newCard = (title, extra = {}) => Object.assign({id: uid(), title, desc: '', done: false, tags: [], due: '', dueTime: '', dueFromDivider: false, timeFromDivider: false, priority: 0, pinned: false, checklist: [], created: Date.now()}, extra);
 const REPEATS = [['none', 'Does not repeat'], ['daily', 'Every day'], ['weekdays', 'Every weekday (Mon–Fri)'], ['weekly', 'Every week'], ['biweekly', 'Every 2 weeks'], ['monthly', 'Every month'], ['yearly', 'Every year']];
 const REPEAT_KEYS = REPEATS.map(r => r[0]);
 const repeatName = r => (REPEATS.find(x => x[0] === r) || REPEATS[0])[1].toLowerCase();
@@ -978,6 +1013,14 @@ function currentWeekDates() {
   return map;
 }
 const newDivider = (label, color = null) => ({id: uid(), type: 'divider', label: String(label || 'Section').slice(0, 80), color: LABEL_KEYS.includes(color) ? color : null, missed: false});
+/* B37: HH:MM, 24-hour, matching this app's one time format everywhere else (card due time, event
+   start/end - see validTime() below, which this intentionally duplicates rather than forward-
+   references, since this runs long before validTime is declared) - used to recognize an
+   hour-labeled divider (see syncTimeFromDivider) and to build the "Daily" preset's labels. */
+const HOUR_LABEL_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+/* B37: the "Daily" board preset's dividers - one per hour, 6:00 through 22:00 inclusive (17
+   dividers covering a normal waking day rather than all 24h, see the B37 task spec §2) */
+const HOUR_DIVIDERS = Array.from({length: 17}, (_, i) => `${pad(i + 6)}:00`);
 /* built-in board presets (ready-made divider layouts) offered by the board-preset picker (B35 §4);
    each is {id, name, dividers: label[]} - seeded with no color (a user can recolor dividers after
    applying). Weekday labels reuse WEEKDAY_NAMES/DIVIDER_PRESETS verbatim. */
@@ -986,7 +1029,8 @@ const BOARD_PRESETS = [
   {id: 'fullweek', name: 'Full week (Mon–Sun)', dividers: WEEKDAY_NAMES.slice()},
   {id: 'weekend', name: 'Weekend (Sat–Sun)', dividers: WEEKDAY_NAMES.slice(5, 7)},
   {id: 'triage', name: 'Triage (Today / Tomorrow / This week / Later)', dividers: ['Today', 'Tomorrow', 'This week', 'Later']},
-  {id: 'timeofday', name: 'Time of day (Morning / Afternoon / Evening)', dividers: ['Morning', 'Afternoon', 'Evening']}
+  {id: 'timeofday', name: 'Time of day (Morning / Afternoon / Evening)', dividers: ['Morning', 'Afternoon', 'Evening']},
+  {id: 'daily', name: 'Daily', dividers: HOUR_DIVIDERS.slice()}
 ];
 /* order a run of cards is shown in within one segment of a board (between two dividers): pinned
    first, then the board's sort rule (manual keeps the dragged/stored order) */
@@ -1102,6 +1146,7 @@ function normalize(s) {
     k.done = !!k.done; k.due = typeof k.due === 'string' ? k.due : '';
     k.dueTime = /^\d{2}:\d{2}$/.test(k.dueTime || '') && k.due ? k.dueTime : '';
     k.dueFromDivider = !!k.dueFromDivider && !!k.due; /* B36: never meaningful without a due date */
+    k.timeFromDivider = !!k.timeFromDivider && !!k.dueTime; /* B37: never meaningful without a due time */
     k.priority = [0, 1, 2, 3, 4].includes(k.priority) ? k.priority : 0; k.pinned = !!k.pinned; k.repeat = REPEAT_KEYS.includes(k.repeat) ? k.repeat : 'none';
     k.tags = Array.isArray(k.tags) ? k.tags.filter(id => tagIds.has(id)) : [];
     if (Array.isArray(k.labels)) {
@@ -1621,7 +1666,7 @@ const tabsEl = $('#tabs');
 const boardEl = $('#board');
 const dockEl = $('#dock');
 $('#app-menu-btn').innerHTML = icon('dotsV');
-$('#feat-btn').innerHTML = icon('dotsH');
+$('#cal-btn').innerHTML = icon('cal');
 $('#ai-fab').innerHTML = icon('sparkle');
 const trashEl = $('#trash-drop');
 trashEl.innerHTML = icon('trash');
@@ -1772,7 +1817,11 @@ boardEl.addEventListener('scroll', () => { ui.scroll[boardEl.dataset.cat] = boar
 function renderDock() {
   const r = running(), p = pr(), now = Date.now();
   const pomoOn = p.phase !== 'idle';
-  $('#feat-btn').classList.toggle('is-live', !!r || !!p.endsAt);
+  /* B37: the old #feat-btn (now removed, replaced by a dedicated Calendar button + Settings
+     items, see appMenu()) used to get an 'is-live' class here for a running Focus/Hours session -
+     that class had no CSS rule attached to it even before this change (dead code), and the running
+     session is already shown prominently by the bottom dock below, so this indicator isn't revived
+     anywhere else; see appMenu()'s "Focus & work" item for the equivalent "still running" signal */
   if (!r && !pomoOn) { dockEl.hidden = true; document.documentElement.classList.remove('has-dock'); return; }
   const rows = [];
   if (pomoOn) {
@@ -1839,6 +1888,11 @@ function addFromComposer() {
   if (divider && c.resetDay != null && WEEKDAY_NAMES.includes(divider.label)) {
     const dateKey = currentWeekDates()[divider.label];
     newCards.forEach(k => { k.due = dateKey; k.dueFromDivider = true; });
+  }
+  /* B37: an hour-labeled divider auto-times a new card the same way - on ANY board, not gated by
+     c.resetDay (see syncTimeFromDivider) */
+  if (divider && HOUR_LABEL_RE.test(divider.label)) {
+    newCards.forEach(k => { k.dueTime = divider.label; k.timeFromDivider = true; if (!k.due) k.due = isoDay(0); });
   }
   c.seq.splice(insertAt, 0, ...newCards);
   ui.composer.text = ''; ui.focus = 'composer-input'; ui.scrollToEnd = !ui.composer.dividerId;
@@ -1969,6 +2023,8 @@ function performReset(c) {
          same B36 logic, not by the user) is cleared here too, the same as any other move-off. A
          due date the user set deliberately (dueFromDivider already false) survives untouched. */
       if (it.dueFromDivider) { it.due = ''; it.dueFromDivider = false; }
+      /* B37: same "move out from under any divider" rule for an hour-auto-assigned time */
+      if (it.timeFromDivider) { it.dueTime = ''; it.timeFromDivider = false; }
       leftover.push(it); /* else: not-done cards are deleted too (full clean slate) */
     }
   });
@@ -1992,7 +2048,9 @@ function spawnNext(card) {
   const cp = cloneCard(card);
   /* B36: the next date comes from the repeat schedule, not from a divider, so it's never
      auto-assigned in the dueFromDivider sense even if the original card happened to be */
-  Object.assign(cp, {done: false, due: next, dueFromDivider: false, repeat: card.repeat}); delete cp.spawned; delete cp.repeatWas;
+  /* B37: same reasoning as dueFromDivider above - the next occurrence's time is inherited from the
+     original card, not freshly assigned by whatever divider the new copy happens to land under */
+  Object.assign(cp, {done: false, due: next, dueFromDivider: false, timeFromDivider: false, repeat: card.repeat}); delete cp.spawned; delete cp.repeatWas;
   cp.checklist.forEach(i => { i.done = false; });
   f.cat.seq.splice(f.index, 0, cp);
   card.spawned = cp.id; card.repeatWas = card.repeat; card.repeat = 'none';
@@ -2057,7 +2115,6 @@ document.addEventListener('click', e => {
       }});
       break;
     case 'menu': appMenu(a); break;
-    case 'features': featuresMenu(a); break;
     case 'time': openTimePanel(); break;
     case 'calendar': openCalendar(); break;
     case 'notes': openNotesSheet(); break;
@@ -2351,6 +2408,27 @@ function syncDueFromDivider(c, card, divider) {
     card.due = ''; card.dueFromDivider = false;
   }
 }
+/* B37: generalization of syncDueFromDivider() above for *time* instead of date - keeps a card's
+   dueTime in sync with the hour-named divider it's currently filed under. Deliberately NOT gated
+   by c.resetDay the way the date version is: a weekday divider's date only makes sense in the
+   context of "this week" (hence resetDay), but an hour divider's time has no such weekly
+   dependency, so this runs on ANY board, with or without a reset day (B37 task spec §3 - call this
+   out clearly, it's the one deliberate behavioral difference from B36's pattern). Landing under a
+   divider whose label parses as a valid HH:MM (HOUR_LABEL_RE, same format as validTime()) sets
+   dueTime + timeFromDivider, and defaults an empty due date to today (an hour has no date of its
+   own); landing anywhere else clears dueTime again, but only while the flag is still true - a
+   manual time edit through the card editor (or the AI assistant) clears the flag immediately, see
+   the card-sheet 'change' handler and update_card, so a later move never clobbers it. */
+function syncTimeFromDivider(card, divider) {
+  const t = divider && HOUR_LABEL_RE.test(divider.label) ? divider.label : null;
+  if (t) {
+    card.dueTime = t;
+    card.timeFromDivider = true;
+    if (!card.due) card.due = isoDay(0);
+  } else if (card.timeFromDivider) {
+    card.dueTime = ''; card.timeFromDivider = false;
+  }
+}
 /* moves a card into another board's single sequence (appended at the end, i.e. before its
    Completed section); used by the tab-hold drag below and exposed read/write via
    window.docketDebug so the state-level move is testable without a real pointer drag (jsdom has
@@ -2363,6 +2441,8 @@ function moveCardToCategory(card, fromCat, destCat) {
      under - clear an auto-assigned due date the same way any other move-off does (a manually set
      due date, which leaves the flag false, is never touched here) */
   if (card.dueFromDivider) { card.due = ''; card.dueFromDivider = false; }
+  /* B37: same move-off rule for an hour-auto-assigned time - independent of resetDay */
+  if (card.timeFromDivider) { card.dueTime = ''; card.timeFromDivider = false; }
   destCat.seq.push(card);
   return true;
 }
@@ -2461,7 +2541,7 @@ function commitDrop(d) {
     c.seq.splice(idx, 0, item);
     /* B36: a card reorder (within the same board, possibly across a divider boundary) can change
        which divider the card now sits under - keep its due date in sync on a weekly board */
-    if (d.type === 'card') syncDueFromDivider(c, item, dividerBeforeIndex(c, idx));
+    if (d.type === 'card') { syncDueFromDivider(c, item, dividerBeforeIndex(c, idx)); syncTimeFromDivider(item, dividerBeforeIndex(c, idx)); }
   } else {
     const order = $$(':scope > .tab[data-cat]', tabsEl).map(n => n.dataset.cat);
     state.categories.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
@@ -2846,21 +2926,21 @@ function newBoardPresetFlow(onApply) {
   }, {cls: 'compact'});
 }
 
-/* one top-bar icon for the four feature entry points (assistant, notes, focus/work, calendar),
-   so they don't crowd the bar as separate icons; each item opens the exact same sheet/window as before */
-function featuresMenu(anchor) {
-  openMenu(anchor, [
-    {label: 'Assistant', icon: 'sparkle', onSelect: () => openAssistant()},
-    {label: 'Notes', icon: 'notes', onSelect: () => openNotesSheet()},
-    {label: 'Focus & work', icon: 'timer', onSelect: () => openTimePanel()},
-    {label: 'Calendar', icon: 'cal', onSelect: () => openCalendar()}
-  ]);
-}
-
 function appMenu(anchor) {
   const s = state.settings;
   const ns = notifStatus();
+  /* B37: Assistant/Notes/Focus & work used to live behind a dedicated #feat-btn menu (alongside
+     Calendar, which now has its own top-bar button) - moved here, at the top of the Settings
+     list, instead (see the B37 task spec §5). Each still opens the exact same thing it did before;
+     this is a relocation of entry points, not a behavior change. "Focus & work" carries a
+     "Running" hint while a Focus/Hours session is active, standing in for the old (CSS-less,
+     already dead) is-live dot that used to sit on #feat-btn - see renderDock(). */
+  const live = !!running() || pr().phase !== 'idle';
   openMenu(anchor, [
+    {label: 'Assistant', icon: 'sparkle', onSelect: () => openAssistant()},
+    {label: 'Notes', icon: 'notes', onSelect: () => openNotesSheet()},
+    {label: 'Focus & work', hint: live ? 'Running' : '', icon: 'timer', onSelect: () => openTimePanel()},
+    {type: 'sep'},
     {label: 'Hide completed cards', icon: 'doneAll', toggle: true, checked: s.hideDone, onSelect: () => { s.hideDone = !s.hideDone; commit(); }},
     {label: 'Theme', hint: themeName(s.theme), icon: 'palette', onSelect: openThemeSheet},
     {label: 'Jobs', hint: state.jobs.length ? state.jobs.map(j => j.name).join(', ') : 'For tracking work hours', icon: 'briefcase', onSelect: openJobsSheet},
@@ -4329,7 +4409,50 @@ function itemsOn(key) {
   return out.sort((a, b) => (b.allDay - a.allDay) || a.time.localeCompare(b.time) || (a.done - b.done));
 }
 const monthKey = ts => dayKey(ts).slice(0, 7);
-function calendarHTML() {
+/* B37: px-per-hour used by the Day view's hourly timeline (calDayHTML) - kept as one constant so
+   the inline block-positioning math and the CSS row height can't drift apart */
+const CAL_HOUR_PX = 56;
+/* B37: the Monday-Sunday week (as 7 ISO day keys) containing the given day - used by the
+   Calendar's own Week view (independent of any board's resetDay/currentWeekDates, which are a
+   board-preset concept keyed by weekday *name*, not by an arbitrary selected date) */
+function calWeekOf(key) {
+  const d = new Date(parseISO(key)), dow = (d.getDay() + 6) % 7;
+  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow);
+  return Array.from({length: 7}, (_, i) => dayKey(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i).getTime()));
+}
+/* B37: the Day/Week/Month segmented switcher, shared by all three views' headers */
+function calViewSegHTML() {
+  return `<div class="seg cal-view-seg" role="tablist">` + [['month', 'Month'], ['week', 'Week'], ['day', 'Day']].map(([k, n]) =>
+    `<button type="button" role="tab" aria-selected="${ui.cal.view === k}" class="${ui.cal.view === k ? 'on' : ''}" data-c="view" data-k="${k}">${n}</button>`).join('') + `</div>`;
+}
+/* B37: the prev/next/title/Today/quick-create row, shared by all three views - only the title text
+   and the prev/next aria-labels differ per view */
+function calHeadHTML(title, prevLabel, nextLabel) {
+  return `<div class="cal-head sheet-drag"><button type="button" class="icon-btn" data-c="prev" aria-label="${prevLabel}">${icon('arrowL')}</button>`
+    + `<b>${title}</b>`
+    + `<button type="button" class="icon-btn" data-c="next" aria-label="${nextLabel}">${icon('arrowR')}</button><span class="grow"></span>`
+    + `<button type="button" class="icon-btn sm" data-c="quick-new" aria-label="New Daily or Weekly board" title="New board from a preset">${icon('plus')}</button>`
+    + `<button type="button" class="btn sm" data-c="today">Today</button></div>`
+    + calViewSegHTML();
+}
+/* B37: factored out of the old calendarHTML() (month view only, pre-B37) so Week's per-column
+   lists can share the exact same item-row rendering/tap-to-open markup instead of a second
+   parallel renderer (B37 task spec §1) */
+function dayRowsHTML(items, emptyMsg) {
+  return items.length ? items.map(it => `<div class="cal-row${it.done ? ' done' : ''}${it.ghost ? ' ghost' : ''}">`
+      + (it.kind === 'card' && !it.ghost ? `<button type="button" class="check${it.done ? ' on' : ''}" data-c="toggle" data-id="${it.id}" aria-label="${it.done ? 'Mark as not done' : 'Mark as done'}">${icon('check')}</button>` : `<span class="cal-evdot" style="--c:${it.color}"></span>`)
+      + `<button type="button" class="cal-open" data-c="open" data-kind="${it.kind}" data-id="${it.id}"><span class="cal-time">${it.allDay ? 'All day' : esc(it.time) + (it.end ? '–' + esc(it.end) : '')}</span>`
+      + `<span class="t"><b>${esc(it.title)}</b><small>${it.kind === 'card' ? `<span class="tab-dot" style="--c:${it.color}"></span>` : ''}${esc(it.sub || (it.kind === 'event' ? 'Event' : ''))}${it.prio ? ` · ${PRIORITY[it.prio].name}` : ''}</small></span></button></div>`).join('')
+    : `<p class="empty sm">${esc(emptyMsg || 'Nothing on this day. Add a task or an event.')}</p>`;
+}
+/* the selected day's full-date heading + its Ask AI/Add task/Add event controls - same "add task
+   from the calendar" flow as always (B37 task spec §1), reused by Month (below its grid) and Week
+   (below its columns), both keyed off the currently selected ui.cal.day */
+function calDayActionsHTML(key) {
+  return `<div class="cal-dayhead"><b>${new Date(parseISO(key)).toLocaleDateString(undefined, {weekday: 'long', day: 'numeric', month: 'long'})}</b>`
+    + `<span class="grow"></span><button type="button" class="icon-btn sm ask-ai" data-c="ai" aria-label="Ask the assistant about this day" title="Ask AI about this day">${icon('sparkle')}</button><button type="button" class="btn sm" data-c="add-task">${icon('plus')}Task</button><button type="button" class="btn sm primary" data-c="add-event">${icon('plus')}Event</button></div>`;
+}
+function calMonthHTML() {
   const [y, m] = ui.cal.month.split('-').map(Number), first = new Date(y, m - 1, 1), today = isoDay(0);
   const startOffset = (first.getDay() + 6) % 7, gridStart = new Date(y, m - 1, 1 - startOffset);
   const cells = [];
@@ -4344,34 +4467,103 @@ function calendarHTML() {
   }
   const dayItems = itemsOn(ui.cal.day);
   const weekdays = Array.from({length: 7}, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(undefined, {weekday: 'short'}));
-  return `<div class="cal-head sheet-drag"><button type="button" class="icon-btn" data-c="prev" aria-label="Previous month">${icon('arrowL')}</button>`
-    + `<b>${first.toLocaleDateString(undefined, {month: 'long', year: 'numeric'})}</b>`
-    + `<button type="button" class="icon-btn" data-c="next" aria-label="Next month">${icon('arrowR')}</button><span class="grow"></span>`
-    + `<button type="button" class="btn sm" data-c="today">Today</button></div>`
+  return calHeadHTML(first.toLocaleDateString(undefined, {month: 'long', year: 'numeric'}), 'Previous month', 'Next month')
     + `<div class="cal-grid" role="grid">${weekdays.map(w => `<span class="cal-wd">${w}</span>`).join('')}${cells.join('')}</div>`
-    + `<div class="cal-dayhead"><b>${new Date(parseISO(ui.cal.day)).toLocaleDateString(undefined, {weekday: 'long', day: 'numeric', month: 'long'})}</b>`
-    + `<span class="grow"></span><button type="button" class="icon-btn sm ask-ai" data-c="ai" aria-label="Ask the assistant about this day" title="Ask AI about this day">${icon('sparkle')}</button><button type="button" class="btn sm" data-c="add-task">${icon('plus')}Task</button><button type="button" class="btn sm primary" data-c="add-event">${icon('plus')}Event</button></div>`
-    + (dayItems.length ? dayItems.map(it => `<div class="cal-row${it.done ? ' done' : ''}${it.ghost ? ' ghost' : ''}">`
-        + (it.kind === 'card' && !it.ghost ? `<button type="button" class="check${it.done ? ' on' : ''}" data-c="toggle" data-id="${it.id}" aria-label="${it.done ? 'Mark as not done' : 'Mark as done'}">${icon('check')}</button>` : `<span class="cal-evdot" style="--c:${it.color}"></span>`)
-        + `<button type="button" class="cal-open" data-c="open" data-kind="${it.kind}" data-id="${it.id}"><span class="cal-time">${it.allDay ? 'All day' : esc(it.time) + (it.end ? '–' + esc(it.end) : '')}</span>`
-        + `<span class="t"><b>${esc(it.title)}</b><small>${it.kind === 'card' ? `<span class="tab-dot" style="--c:${it.color}"></span>` : ''}${esc(it.sub || (it.kind === 'event' ? 'Event' : ''))}${it.prio ? ` · ${PRIORITY[it.prio].name}` : ''}</small></span></button></div>`).join('')
-      : `<p class="empty sm">Nothing on this day. Add a task or an event.</p>`);
-
+    + calDayActionsHTML(ui.cal.day)
+    + dayRowsHTML(dayItems);
+}
+/* B37 §1: 7-column Week view (Monday-Sunday of the week containing ui.cal.day) - each column
+   reuses dayRowsHTML() for its items, exactly like the month view's day list below the grid */
+function calWeekHTML() {
+  const days = calWeekOf(ui.cal.day), today = isoDay(0);
+  const weekdayShort = Array.from({length: 7}, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(undefined, {weekday: 'short'}));
+  const title = `${fmtDate(parseISO(days[0]))} – ${fmtDate(parseISO(days[6]))}`;
+  const cols = days.map((key, i) => {
+    const items = itemsOn(key);
+    return `<div class="cal-weekcol${key === today ? ' today' : ''}${key === ui.cal.day ? ' sel' : ''}">`
+      + `<button type="button" class="cal-weekcol-head" data-day="${key}" aria-label="${fmtDay(key)}, ${items.length} items"><span class="wd">${weekdayShort[i]}</span><span class="num">${new Date(parseISO(key)).getDate()}</span></button>`
+      + `<div class="cal-weekcol-body">${dayRowsHTML(items, 'Nothing')}</div></div>`;
+  }).join('');
+  return calHeadHTML(title, 'Previous week', 'Next week')
+    + `<div class="cal-week" role="grid">${cols}</div>`
+    + calDayActionsHTML(ui.cal.day);
+}
+/* B37 §1/§4: Day (with hours) view - a single day's 00:00-23:00 vertical timeline. All-day items
+   and timed items with no time go in a header strip above the grid (Google-Calendar-style "all
+   day" row) rather than in the timeline itself. A timed card renders as a short fixed-height block
+   at its dueTime (cards have no duration); a timed event's start/end gives its block a real
+   height. This reads card.due/card.dueTime exactly like Month/Week do via itemsOn() - an hour-
+   divider-auto-timed card (B37 §3, syncTimeFromDivider) needs no special-casing here at all, it
+   just shows up at the right slot because dueTime is already set. */
+function calDayHTML() {
+  const key = ui.cal.day;
+  const items = itemsOn(key);
+  const allDayItems = items.filter(it => it.allDay);
+  const timedItems = items.filter(it => !it.allDay);
+  const hourRows = Array.from({length: 24}, (_, h) => `<div class="cal-hour"><span class="cal-hour-label">${pad(h)}:00</span></div>`).join('');
+  const blocks = timedItems.map(it => {
+    const [hh, mm] = it.time.split(':').map(Number);
+    const startMin = hh * 60 + mm;
+    let durMin = 30;
+    if (it.kind === 'event' && it.end) { const [eh, em] = it.end.split(':').map(Number); durMin = Math.max(24, (eh * 60 + em) - startMin); }
+    const top = startMin / 60 * CAL_HOUR_PX, h = Math.max(20, durMin / 60 * CAL_HOUR_PX);
+    return `<button type="button" class="cal-block${it.done ? ' done' : ''}${it.ghost ? ' ghost' : ''}" data-c="open" data-kind="${it.kind}" data-id="${it.id}" style="top:${top}px;height:${h}px;--c:${it.color}">`
+      + `<b>${esc(it.title)}</b><small>${esc(it.time)}${it.end ? '–' + esc(it.end) : ''}</small></button>`;
+  }).join('');
+  return calHeadHTML(new Date(parseISO(key)).toLocaleDateString(undefined, {weekday: 'long', day: 'numeric', month: 'long'}), 'Previous day', 'Next day')
+    + `<div class="cal-dayhead" style="margin-top:0"><span class="grow"></span><button type="button" class="icon-btn sm ask-ai" data-c="ai" aria-label="Ask the assistant about this day" title="Ask AI about this day">${icon('sparkle')}</button><button type="button" class="btn sm" data-c="add-task">${icon('plus')}Task</button><button type="button" class="btn sm primary" data-c="add-event">${icon('plus')}Event</button></div>`
+    + `<div class="cal-allday"><span class="lbl">All day</span><div class="cal-allday-items">${allDayItems.length ? dayRowsHTML(allDayItems, 'Nothing all day') : `<p class="empty sm">Nothing all day</p>`}</div></div>`
+    + `<div class="cal-dayscroll"><div class="cal-hours" style="height:${24 * CAL_HOUR_PX}px">${hourRows}<div class="cal-blocks">${blocks}</div></div></div>`;
+}
+function calendarHTML() {
+  if (ui.cal.view === 'week') return calWeekHTML();
+  if (ui.cal.view === 'day') return calDayHTML();
+  return calMonthHTML();
+}
+/* B37 §6: one-tap board creation straight from the "Daily" (hourly) or "Full week (Mon-Sun)"
+   board presets, reusing the exact same preset-application path new-board creation already uses
+   (newCategory + applyPresetToNewBoard) rather than a second, parallel one. "Weekly" uses Full
+   week (Mon-Sun), not Workweek (Mon-Fri), since it pairs with this Calendar's own Monday-Sunday
+   Week view - flagged in the B37 report in case the user actually wanted Workweek instead. */
+function quickCreateBoard(presetId, close) {
+  const preset = BOARD_PRESETS.find(p => p.id === presetId); if (!preset) return;
+  const c = newCategory(preset.name, LABEL_KEYS[state.categories.length % LABEL_KEYS.length]);
+  applyPresetToNewBoard(c, {dividers: preset.dividers.map(l => ({label: l, color: null}))});
+  state.categories.push(c); state.active = c.id; commit();
+  haptic('success'); toast(`Created “${preset.name}” board`);
+  if (close) close();
+  requestAnimationFrame(() => { const t = tabsEl.querySelector(`[data-cat="${c.id}"]`); if (t) t.scrollIntoView({inline: 'nearest', block: 'nearest'}); });
 }
 function openCalendar(day) {
   ui.cal = ui.cal || {};
   ui.cal.day = day || ui.cal.day || isoDay(0);
   ui.cal.month = ui.cal.day.slice(0, 7);
+  ui.cal.view = ui.cal.view || 'month'; /* B37: Month is still the default - nothing changes for a user who never touches the switcher */
   openSheet((inner, close) => {
     const draw = () => {
       const st = inner.scrollTop; inner.innerHTML = calendarHTML();
       if (wide.matches) {
-        const grid = $('.cal-grid', inner), side = document.createElement('div'), wrap = document.createElement('div');
-        side.className = 'cal-side'; wrap.className = 'cal-wrap';
-        let n = $('.cal-dayhead', inner); while (n) { const next = n.nextSibling; side.appendChild(n); n = next; }
-        grid.before(wrap); wrap.append(grid, side);
+        const grid = $('.cal-grid', inner);
+        if (grid) { /* B37: only the Month view has this grid - Week/Day render full-width with no side panel */
+          const side = document.createElement('div'), wrap = document.createElement('div');
+          side.className = 'cal-side'; wrap.className = 'cal-wrap';
+          let n = $('.cal-dayhead', inner); while (n) { const next = n.nextSibling; side.appendChild(n); n = next; }
+          grid.before(wrap); wrap.append(grid, side);
+        }
       }
-      inner.scrollTop = st;
+      if (ui.cal.view === 'day') {
+        /* B37: default scroll position - near now if today, else near the first timed item, else
+           a sensible 8am default */
+        const dsc = $('.cal-dayscroll', inner);
+        if (dsc) {
+          let mins = 8 * 60;
+          if (ui.cal.day === isoDay(0)) { const now = new Date(); mins = now.getHours() * 60 + now.getMinutes(); }
+          else { const first = itemsOn(ui.cal.day).find(it => !it.allDay); if (first) { const [hh, mm] = first.time.split(':').map(Number); mins = hh * 60 + mm; } }
+          dsc.scrollTop = Math.max(0, mins / 60 * CAL_HOUR_PX - dsc.clientHeight / 3);
+        }
+      } else {
+        inner.scrollTop = st;
+      }
     };
     const back = () => openCalendar(ui.cal.day);
     draw();
@@ -4381,7 +4573,18 @@ function openCalendar(day) {
       const b = e.target.closest('[data-c]'); if (!b) return;
       const [y, m] = ui.cal.month.split('-').map(Number);
       switch (b.dataset.c) {
-        case 'prev': case 'next': { const d = new Date(y, m - 1 + (b.dataset.c === 'next' ? 1 : -1), 1); ui.cal.month = monthKey(d.getTime()); ui.cal.day = ui.cal.month + '-01'; draw(); return; }
+        case 'view': ui.cal.view = b.dataset.k; haptic('select'); draw(); return;
+        case 'quick-new': openMenu(b, [
+          {label: 'Daily board', icon: 'plus', onSelect: () => quickCreateBoard('daily', close)},
+          {label: 'Weekly board (Full week)', icon: 'plus', onSelect: () => quickCreateBoard('fullweek', close)}
+        ]); return;
+        case 'prev': case 'next': {
+          const dir = b.dataset.c === 'next' ? 1 : -1;
+          if (ui.cal.view === 'week') { const d = new Date(parseISO(ui.cal.day)); d.setDate(d.getDate() + dir * 7); ui.cal.day = dayKey(d.getTime()); ui.cal.month = ui.cal.day.slice(0, 7); }
+          else if (ui.cal.view === 'day') { const d = new Date(parseISO(ui.cal.day)); d.setDate(d.getDate() + dir); ui.cal.day = dayKey(d.getTime()); ui.cal.month = ui.cal.day.slice(0, 7); }
+          else { const d = new Date(y, m - 1 + dir, 1); ui.cal.month = monthKey(d.getTime()); ui.cal.day = ui.cal.month + '-01'; }
+          draw(); return;
+        }
         case 'today': ui.cal.day = isoDay(0); ui.cal.month = ui.cal.day.slice(0, 7); draw(); return;
         case 'add-event': openEventEditor(null, {date: ui.cal.day, back}); return;
         case 'add-task': openCalTaskSheet(ui.cal.day, back); return;
@@ -4607,8 +4810,10 @@ function aiRun(name, a) {
       if (a.title) k.title = String(a.title).slice(0, 300);
       if (typeof a.description === 'string') k.desc = a.description;
       if (a.append_description) k.desc = (k.desc ? k.desc.replace(/\s+$/, '') + '\n\n' : '') + a.append_description;
-      if (a.due_date === '') { k.due = ''; k.dueTime = ''; k.dueFromDivider = false; } else if (validDate(a.due_date)) { k.due = a.due_date; k.dueFromDivider = false; }
-      if (a.due_time === '') k.dueTime = ''; else if (validTime(a.due_time) && k.due) k.dueTime = a.due_time;
+      if (a.due_date === '') { k.due = ''; k.dueTime = ''; k.dueFromDivider = false; k.timeFromDivider = false; } else if (validDate(a.due_date)) { k.due = a.due_date; k.dueFromDivider = false; }
+      /* B37: an explicit due_time through the assistant is a deliberate edit, same as due_date
+         above - clears timeFromDivider immediately so a later drag never clobbers it */
+      if (a.due_time === '') { k.dueTime = ''; k.timeFromDivider = false; } else if (validTime(a.due_time) && k.due) { k.dueTime = a.due_time; k.timeFromDivider = false; }
       if (REPEAT_KEYS.includes(a.repeat)) k.repeat = k.due ? a.repeat : 'none';
       if (!k.due) k.repeat = 'none';
       if (a.priority) k.priority = Math.max(0, PRIO_NAMES.indexOf(norm(a.priority)));
@@ -5068,7 +5273,7 @@ function openCard(id) {
         case 'entry': openEntryEditor(b.dataset.e, {back}); return;
         case 'add-time': openEntryEditor(null, {cardId: id, back}); return;
         case 'tags': openTagPicker(id, back); return;
-        case 'clear-due': k.due = ''; k.dueTime = ''; k.repeat = 'none'; k.dueFromDivider = false; break;
+        case 'clear-due': k.due = ''; k.dueTime = ''; k.repeat = 'none'; k.dueFromDivider = false; k.timeFromDivider = false; break;
         case 'ai': close(); openAssistant({ctx: {kind: 'card', id, title: k.title}}); return;
         case 'pin': k.pinned = !k.pinned; haptic('select'); toast(k.pinned ? 'Pinned to the top of the column' : 'Unpinned'); break;
         case 'prio': k.priority = +b.dataset.p; haptic('select'); break;
@@ -5094,8 +5299,8 @@ function openCard(id) {
     });
     inner.addEventListener('change', e => {
       const t = e.target, f = findCard(id); if (!f) return;
-      if (t.id === 'cs-due') { f.card.due = t.value; if (!t.value) { f.card.dueTime = ''; f.card.repeat = 'none'; } f.card.dueFromDivider = false; save(); scheduleRender(); draw(); }
-      else if (t.id === 'cs-due-time') { f.card.dueTime = f.card.due ? t.value : ''; save(); scheduleRender(); draw(); }
+      if (t.id === 'cs-due') { f.card.due = t.value; if (!t.value) { f.card.dueTime = ''; f.card.repeat = 'none'; f.card.timeFromDivider = false; } f.card.dueFromDivider = false; save(); scheduleRender(); draw(); }
+      else if (t.id === 'cs-due-time') { f.card.dueTime = f.card.due ? t.value : ''; f.card.timeFromDivider = false; save(); scheduleRender(); draw(); }
       else if ((t.id === 'cl-ed-date' || t.id === 'cl-ed-time') && ui.clOpen) {
         const it = f.card.checklist.find(i => i.id === ui.clOpen); if (!it) return;
         if (t.id === 'cl-ed-date') { it.due = t.value; if (!t.value) it.dueTime = ''; }
@@ -5272,6 +5477,7 @@ window.docketDebug = {
     if (dividerId) { const di = c.seq.findIndex(it => it.type === 'divider' && it.id === dividerId); idx = di > -1 ? di + 1 : c.seq.length; }
     c.seq.splice(idx, 0, item);
     syncDueFromDivider(c, item, dividerBeforeIndex(c, idx));
+    syncTimeFromDivider(item, dividerBeforeIndex(c, idx));
     save(); render();
     return true;
   }
