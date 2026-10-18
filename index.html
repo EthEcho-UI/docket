@@ -111,6 +111,7 @@ html.dragging,html.dragging *{cursor:grabbing!important}
 .divider.is-done-header .divider-label:hover{background:none}
 .divider-label-input{flex:1;min-width:0;border:0;outline:none;border-radius:8px;padding:7px 8px;background:var(--card);box-shadow:0 0 0 2px var(--accent);font:650 13px/1.2 var(--font-mono);letter-spacing:.04em;text-transform:uppercase;color:var(--ink)}
 .divider-count{flex:none;font:500 12px/1 var(--font-mono);color:var(--muted);padding:0 6px;font-variant-numeric:tabular-nums}
+.divider-date{opacity:.72;font-weight:500;margin-left:1px}
 .divider.is-pressing{background:var(--hover);border-radius:12px}
 .divider-del{flex:none}
 .seg-add{margin:0 0 4px 2px;height:34px;font-size:13.5px}
@@ -927,7 +928,7 @@ const themeName = t => (THEME_LIST.find(x => x[0] === t) || THEME_LIST[0])[1];
 })();
 
 /* ================= state ================= */
-const newCard = (title, extra = {}) => Object.assign({id: uid(), title, desc: '', done: false, tags: [], due: '', dueTime: '', priority: 0, pinned: false, checklist: [], created: Date.now()}, extra);
+const newCard = (title, extra = {}) => Object.assign({id: uid(), title, desc: '', done: false, tags: [], due: '', dueTime: '', dueFromDivider: false, priority: 0, pinned: false, checklist: [], created: Date.now()}, extra);
 const REPEATS = [['none', 'Does not repeat'], ['daily', 'Every day'], ['weekdays', 'Every weekday (Mon–Fri)'], ['weekly', 'Every week'], ['biweekly', 'Every 2 weeks'], ['monthly', 'Every month'], ['yearly', 'Every year']];
 const REPEAT_KEYS = REPEATS.map(r => r[0]);
 const repeatName = r => (REPEATS.find(x => x[0] === r) || REPEATS[0])[1].toLowerCase();
@@ -965,6 +966,17 @@ const DIVIDER_PRESETS = ['Today', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 
    the weekday-named board presets below, so the two systems can't drift out of sync with
    DIVIDER_PRESETS (grep DIVIDER_PRESETS.slice) */
 const WEEKDAY_NAMES = DIVIDER_PRESETS.slice(1, 8);
+/* B36: the Monday-Sunday calendar week containing *today*, computed fresh every time it's called
+   (never stored) - maps each WEEKDAY_NAMES entry to that day's ISO date key for the current week,
+   so a weekly board's weekday dividers (and the due dates they hand out) are always correct for
+   "this week" with no extra state and no coordination with the board's own resetDay. */
+function currentWeekDates() {
+  const today = new Date();
+  const dow = (today.getDay() + 6) % 7; /* 0=Monday ... 6=Sunday */
+  const map = {};
+  WEEKDAY_NAMES.forEach((name, i) => { const d = new Date(today); d.setDate(today.getDate() - dow + i); map[name] = dayKey(d.getTime()); });
+  return map;
+}
 const newDivider = (label, color = null) => ({id: uid(), type: 'divider', label: String(label || 'Section').slice(0, 80), color: LABEL_KEYS.includes(color) ? color : null, missed: false});
 /* built-in board presets (ready-made divider layouts) offered by the board-preset picker (B35 §4);
    each is {id, name, dividers: label[]} - seeded with no color (a user can recolor dividers after
@@ -1089,6 +1101,7 @@ function normalize(s) {
     k.id = k.id || uid(); k.title = String(k.title || 'Untitled'); k.desc = String(k.desc || '');
     k.done = !!k.done; k.due = typeof k.due === 'string' ? k.due : '';
     k.dueTime = /^\d{2}:\d{2}$/.test(k.dueTime || '') && k.due ? k.dueTime : '';
+    k.dueFromDivider = !!k.dueFromDivider && !!k.due; /* B36: never meaningful without a due date */
     k.priority = [0, 1, 2, 3, 4].includes(k.priority) ? k.priority : 0; k.pinned = !!k.pinned; k.repeat = REPEAT_KEYS.includes(k.repeat) ? k.repeat : 'none';
     k.tags = Array.isArray(k.tags) ? k.tags.filter(id => tagIds.has(id)) : [];
     if (Array.isArray(k.labels)) {
@@ -1667,10 +1680,16 @@ function cardHTML(c, k, r) {
     + `</article>`;
 }
 
-function dividerHTML(d) {
+/* weekDates: null on a non-weekly board (c.resetDay == null); otherwise this week's
+   currentWeekDates() map, so an exact weekday-name divider ('Monday' etc.) shows that day's real
+   calendar date for the current week (B36 §1) - anything else (custom labels, "Today",
+   "Someday", "⚠ Missed", ...) renders exactly as before. Read-only/computed, never stored. */
+function dividerHTML(d, weekDates) {
+  const dateKey = weekDates && weekDates[d.label];
+  const dateSuffix = dateKey ? ` <span class="divider-date">· ${fmtDate(parseISO(dateKey))}</span>` : '';
   const title = ui.renamingDivider === d.id
     ? `<input id="rename-divider-input" class="divider-label-input" data-rename="${d.id}" value="${esc(d.label)}" maxlength="80" enterkeyhint="done" autocomplete="off" aria-label="Divider label">`
-    : `<button type="button" class="divider-label" data-action="rename-divider" data-divider="${d.id}" title="Rename">${d.color ? `<span class="divider-dot"></span>` : ''}${esc(d.label)}</button>`;
+    : `<button type="button" class="divider-label" data-action="rename-divider" data-divider="${d.id}" title="Rename">${d.color ? `<span class="divider-dot"></span>` : ''}${esc(d.label)}${dateSuffix}</button>`;
   return `<div class="divider${d.color ? ' has-color' : ''}" data-divider="${d.id}" data-drag="divider"${d.color ? ` style="--c:var(--l-${d.color})"` : ''}>${title}`
     + `<button type="button" class="icon-btn sm" data-action="divider-menu" data-divider="${d.id}" aria-label="“${esc(d.label)}” options">${icon('dotsV')}</button>`
     + `<button type="button" class="icon-btn sm divider-del" data-action="delete-divider" data-divider="${d.id}" aria-label="Delete “${esc(d.label)}”">${icon('x')}</button></div>`;
@@ -1697,13 +1716,16 @@ function boardSeqHTML(c, r) {
   const doneCards = [];
   let seg = [], curDivider = null;
   const parts = [];
+  /* B36: only a "weekly board" (resetDay set, see HANDOFF §2/§3) shows real dates on its weekday
+     dividers - a board without a reset day is unaffected */
+  const weekDates = c.resetDay != null ? currentWeekDates() : null;
   const flushSeg = () => {
     parts.push(orderedSegment(c, seg).map(it => cardHTML(c, it, r)).join(''));
     if (curDivider) parts.push(segFootHTML(curDivider));
     seg = [];
   };
   c.seq.forEach(it => {
-    if (it.type === 'divider') { flushSeg(); parts.push(dividerHTML(it)); curDivider = it.id; return; }
+    if (it.type === 'divider') { flushSeg(); parts.push(dividerHTML(it, weekDates)); curDivider = it.id; return; }
     if (it.done) { doneCards.push(it); return; }
     seg.push(it);
   });
@@ -1806,10 +1828,17 @@ function addFromComposer() {
   /* B35: a composer opened from inside a specific divider's section (ui.composer.dividerId) inserts
      right after that section's last existing item instead of always at the board's very end - the
      board's own generic "Add card" (dividerId null/undefined) keeps appending at the end like before */
-  let insertAt = c.seq.length;
+  let insertAt = c.seq.length, divider = null;
   if (ui.composer.dividerId) {
     const di = c.seq.findIndex(it => it.type === 'divider' && it.id === ui.composer.dividerId);
-    if (di > -1) { insertAt = di + 1; while (insertAt < c.seq.length && c.seq[insertAt].type !== 'divider') insertAt++; }
+    if (di > -1) { divider = c.seq[di]; insertAt = di + 1; while (insertAt < c.seq.length && c.seq[insertAt].type !== 'divider') insertAt++; }
+  }
+  /* B36: adding straight into a weekday divider's section on a weekly board auto-sets the new
+     card's due date to that divider's current-week date, flagged dueFromDivider (see
+     syncDueFromDivider) so it's tracked separately from a deliberately user-set due date */
+  if (divider && c.resetDay != null && WEEKDAY_NAMES.includes(divider.label)) {
+    const dateKey = currentWeekDates()[divider.label];
+    newCards.forEach(k => { k.due = dateKey; k.dueFromDivider = true; });
   }
   c.seq.splice(insertAt, 0, ...newCards);
   ui.composer.text = ''; ui.focus = 'composer-input'; ui.scrollToEnd = !ui.composer.dividerId;
@@ -1934,7 +1963,14 @@ function performReset(c) {
   c.seq.forEach(it => {
     if (it.type === 'divider') { if (it !== oldMissed) keep.push(it); return; }
     if (it.done) return; /* every done card is deleted, no exceptions */
-    if (c.carryForward) leftover.push(it); /* else: not-done cards are deleted too (full clean slate) */
+    if (c.carryForward) {
+      /* B36: being swept into "⚠ Missed" is a move out from under whatever divider the card was
+         filed under - Missed isn't a weekday divider, so an auto-assigned due date (set by this
+         same B36 logic, not by the user) is cleared here too, the same as any other move-off. A
+         due date the user set deliberately (dueFromDivider already false) survives untouched. */
+      if (it.dueFromDivider) { it.due = ''; it.dueFromDivider = false; }
+      leftover.push(it); /* else: not-done cards are deleted too (full clean slate) */
+    }
   });
   if (c.carryForward && leftover.length) {
     const missed = oldMissed || Object.assign(newDivider('⚠ Missed'), {missed: true, color: 'rust'});
@@ -1954,7 +1990,9 @@ function spawnNext(card) {
   while (next && next < today) next = nextRepeat(card.repeat, next);
   const f = findCard(card.id); if (!next || !f) return '';
   const cp = cloneCard(card);
-  Object.assign(cp, {done: false, due: next, repeat: card.repeat}); delete cp.spawned; delete cp.repeatWas;
+  /* B36: the next date comes from the repeat schedule, not from a divider, so it's never
+     auto-assigned in the dueFromDivider sense even if the original card happened to be */
+  Object.assign(cp, {done: false, due: next, dueFromDivider: false, repeat: card.repeat}); delete cp.spawned; delete cp.repeatWas;
   cp.checklist.forEach(i => { i.done = false; });
   f.cat.seq.splice(f.index, 0, cp);
   card.spawned = cp.id; card.repeatWas = card.repeat; card.repeat = 'none';
@@ -2289,6 +2327,30 @@ function setTabHover(tabEl) {
     }, BOARD_DROP_HOLD_MS);
   }
 }
+/* B36: the nearest divider at or before index i in c.seq (null above the first divider, i.e. not
+   under any divider at all) */
+function dividerBeforeIndex(c, i) {
+  for (let j = i - 1; j >= 0; j--) { if (c.seq[j].type === 'divider') return c.seq[j]; }
+  return null;
+}
+/* B36: keeps a card's due date in sync with the weekday divider it's currently filed under, on a
+   weekly board (c.resetDay != null - a board without a reset day is untouched). Call this after
+   anything that can change which divider a card ends up under on the same board (reordering by
+   drag, see commitDrop). Landing under an exact weekday-name divider sets/refreshes an
+   auto-assigned due date for that week (flagged card.dueFromDivider); landing anywhere else
+   (a non-weekday divider, above the first divider, ...) clears the due date again - but only if
+   it's still flagged as auto-assigned, so a date the user set deliberately through the card
+   editor (which clears the flag on edit - see the card-sheet 'change' handler) is never touched
+   by this. */
+function syncDueFromDivider(c, card, divider) {
+  if (c.resetDay == null) return;
+  if (divider && WEEKDAY_NAMES.includes(divider.label)) {
+    card.due = currentWeekDates()[divider.label];
+    card.dueFromDivider = true;
+  } else if (card.dueFromDivider) {
+    card.due = ''; card.dueFromDivider = false;
+  }
+}
 /* moves a card into another board's single sequence (appended at the end, i.e. before its
    Completed section); used by the tab-hold drag below and exposed read/write via
    window.docketDebug so the state-level move is testable without a real pointer drag (jsdom has
@@ -2297,6 +2359,10 @@ function moveCardToCategory(card, fromCat, destCat) {
   const i = fromCat.seq.indexOf(card);
   if (i === -1) return false;
   fromCat.seq.splice(i, 1);
+  /* B36: leaving a board entirely is a move out from under any weekday divider it was filed
+     under - clear an auto-assigned due date the same way any other move-off does (a manually set
+     due date, which leaves the flag false, is never touched here) */
+  if (card.dueFromDivider) { card.due = ''; card.dueFromDivider = false; }
   destCat.seq.push(card);
   return true;
 }
@@ -2393,6 +2459,9 @@ function commitDrop(d) {
     else if (next) { const ni = c.seq.findIndex(it => it.id === (next.dataset.card || next.dataset.divider)); if (ni > -1) idx = ni; else idx = 0; }
     else idx = 0;
     c.seq.splice(idx, 0, item);
+    /* B36: a card reorder (within the same board, possibly across a divider boundary) can change
+       which divider the card now sits under - keep its due date in sync on a weekly board */
+    if (d.type === 'card') syncDueFromDivider(c, item, dividerBeforeIndex(c, idx));
   } else {
     const order = $$(':scope > .tab[data-cat]', tabsEl).map(n => n.dataset.cat);
     state.categories.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
@@ -4538,7 +4607,7 @@ function aiRun(name, a) {
       if (a.title) k.title = String(a.title).slice(0, 300);
       if (typeof a.description === 'string') k.desc = a.description;
       if (a.append_description) k.desc = (k.desc ? k.desc.replace(/\s+$/, '') + '\n\n' : '') + a.append_description;
-      if (a.due_date === '') { k.due = ''; k.dueTime = ''; } else if (validDate(a.due_date)) k.due = a.due_date;
+      if (a.due_date === '') { k.due = ''; k.dueTime = ''; k.dueFromDivider = false; } else if (validDate(a.due_date)) { k.due = a.due_date; k.dueFromDivider = false; }
       if (a.due_time === '') k.dueTime = ''; else if (validTime(a.due_time) && k.due) k.dueTime = a.due_time;
       if (REPEAT_KEYS.includes(a.repeat)) k.repeat = k.due ? a.repeat : 'none';
       if (!k.due) k.repeat = 'none';
@@ -4999,7 +5068,7 @@ function openCard(id) {
         case 'entry': openEntryEditor(b.dataset.e, {back}); return;
         case 'add-time': openEntryEditor(null, {cardId: id, back}); return;
         case 'tags': openTagPicker(id, back); return;
-        case 'clear-due': k.due = ''; k.dueTime = ''; k.repeat = 'none'; break;
+        case 'clear-due': k.due = ''; k.dueTime = ''; k.repeat = 'none'; k.dueFromDivider = false; break;
         case 'ai': close(); openAssistant({ctx: {kind: 'card', id, title: k.title}}); return;
         case 'pin': k.pinned = !k.pinned; haptic('select'); toast(k.pinned ? 'Pinned to the top of the column' : 'Unpinned'); break;
         case 'prio': k.priority = +b.dataset.p; haptic('select'); break;
@@ -5025,7 +5094,7 @@ function openCard(id) {
     });
     inner.addEventListener('change', e => {
       const t = e.target, f = findCard(id); if (!f) return;
-      if (t.id === 'cs-due') { f.card.due = t.value; if (!t.value) { f.card.dueTime = ''; f.card.repeat = 'none'; } save(); scheduleRender(); draw(); }
+      if (t.id === 'cs-due') { f.card.due = t.value; if (!t.value) { f.card.dueTime = ''; f.card.repeat = 'none'; } f.card.dueFromDivider = false; save(); scheduleRender(); draw(); }
       else if (t.id === 'cs-due-time') { f.card.dueTime = f.card.due ? t.value : ''; save(); scheduleRender(); draw(); }
       else if ((t.id === 'cl-ed-date' || t.id === 'cl-ed-time') && ui.clOpen) {
         const it = f.card.checklist.find(i => i.id === ui.clOpen); if (!it) return;
@@ -5180,7 +5249,32 @@ window.docketDebug = {
      resetDay to this value (and lastResetAt to '' to force it, or to today to prove it won't
      double-fire) then call this instead of mocking Date, see tests/smoke22.js */
   weekdayToday: () => (new Date().getDay() + 6) % 7,
-  checkWeeklyResets: () => { checkWeeklyResets(); return state.categories.map(c => ({id: c.id, lastResetAt: c.lastResetAt})); }
+  checkWeeklyResets: () => { checkWeeklyResets(); return state.categories.map(c => ({id: c.id, lastResetAt: c.lastResetAt})); },
+  /* test-only (B36): this week's Monday-Sunday date map (same one dividerHTML/syncDueFromDivider
+     use), so tests can assert against the real computed dates instead of re-deriving the
+     Monday-rollover math themselves - see tests/smoke23.js */
+  currentWeekDates: () => currentWeekDates(),
+  /* test-only (B36): the exact date-label text dividerHTML() appends to a weekday divider for a
+     given ISO day key, so tests can assert against it without reimplementing fmtDate's locale
+     formatting themselves (fmtDate/parseISO are module-local consts, not visible on window) */
+  weekdayDateLabel: iso => fmtDate(parseISO(iso)),
+  /* test-only (B36): drives the exact same-board reposition a real card drag performs (splice out,
+     splice back in right after the given divider - or at index 0, above every divider, when
+     dividerId is falsy), then calls the production dividerBeforeIndex()/syncDueFromDivider() the
+     same way commitDrop() does - without a real pointer drag (jsdom has no layout/elementFromPoint;
+     see tests/smoke23.js). Dividers themselves never move this way, matching the real drag. */
+  moveCardWithinBoard: (cardId, dividerId) => {
+    const f = findCard(cardId); if (!f) return null;
+    const c = f.cat;
+    const i = c.seq.indexOf(f.card); if (i === -1) return null;
+    const [item] = c.seq.splice(i, 1);
+    let idx = 0;
+    if (dividerId) { const di = c.seq.findIndex(it => it.type === 'divider' && it.id === dividerId); idx = di > -1 ? di + 1 : c.seq.length; }
+    c.seq.splice(idx, 0, item);
+    syncDueFromDivider(c, item, dividerBeforeIndex(c, idx));
+    save(); render();
+    return true;
+  }
 };
 const activeTab = tabsEl.querySelector('.tab.is-active'); if (activeTab) activeTab.scrollIntoView({inline: 'nearest', block: 'nearest'});
 if (pr().endsAt) tick();
