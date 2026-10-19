@@ -4,7 +4,7 @@ Read this first when you continue the project in a new conversation. It records 
 
 **To continue in a new chat:** give the assistant this file (or its link, https://github.com/EthEcho-UI/docket/blob/main/HANDOFF.md) and say what you want next. If the assistant runs on the user's server (Claude Code), the whole project also lives in `~/Documents/AgentWorkspace/projects/kanban-todo-app/` (code, push server, tests, logs, secrets).
 
-_Last updated: 2026-10-18 (Day/Week/Month calendar views, "Daily" hourly board preset + due-time auto-sync, top-bar reorg, B37)._
+_Last updated: 2026-10-19 (Week view made vertical like Day, B38)._
 
 ---
 
@@ -47,7 +47,7 @@ A phone-first, Trello-style to-do app with a calendar, focus timer, work-hours t
 **Calendar** (dedicated top-bar Calendar button, `#cal-btn`, B37 - see "Top bar and Settings" below; key C on desktop)
 - **Day / Week / Month view switcher (B37)** in the Calendar panel's own header, defaulting to Month (today's original behaviour, unchanged for anyone who never touches it).
   - **Month**: unchanged - grid; due cards on their date (with time), future repeats of cards shown faded; tick cards off from the day list. A card auto-dated by a weekly board's weekday divider (B36, §2) or auto-timed by an hour divider (B37, below) shows up here exactly like any other due card - no calendar-specific code needed, since it just keys off `card.due`/`card.dueTime` either way.
-  - **Week**: 7 columns, Monday-Sunday of the week containing the selected date (own `calWeekOf()`, independent of any board's `resetDay`/`currentWeekDates()` - this is the Calendar's own week, keyed by an arbitrary selected date, not a board's weekday-name dividers). Each column reuses the exact same item-row rendering as Month's day list (`dayRowsHTML()`) rather than a second renderer.
+  - **Week (made vertical in B38 - was 7 horizontal day-list columns in B37, changed on user feedback)**: a shared 00:00-23:00 hour-label gutter on the left, like Day, with 7 day columns (Monday-Sunday of the week containing the selected date, own `calWeekOf()`, independent of any board's `resetDay`/`currentWeekDates()`) laid out side by side to its right - each column is a mini version of Day's own hourly grid, reusing `.cal-block` directly for timed items (same top/height math as Day). Day headers sit above the grid; all-day items get their own compact chip row above the grid too (`cal-week-allday-col`/`-chip`), not mixed into the hourly timeline. Scrolls as one unit (`.cal-weekscroll`), same default-scroll-position logic as Day (near now if today's in the visible week, else the first timed item across the week, else 8am).
   - **Day (with hours)**: a single day as a 00:00-23:00 vertical timeline (`calDayHTML()`, 56px/hour). All-day items and items with no time render in a header strip above the grid (Google-Calendar-style "all day" row), not in the timeline; a timed card renders as a short fixed block at its `dueTime`, a timed event's `start`/`end` gives it a real height. Scrolled by default near the current time (today), else near the first timed item, else 8am. Tapping any item opens it the same way the day list does.
   - All three views keep the existing "add task from the calendar" flow (`openCalTaskSheet`) and Ask AI button working, keyed off the currently selected day.
 - **Events** like Google Calendar: all-day (optionally multi-day) or timed, colour, notes, reminder (none / at start / 5, 10, 30, 60 min / 1 day before), repeat (same options as cards) with optional "repeat until".

@@ -508,20 +508,34 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
 /* B37: Day/Week/Month switcher - reuses the same segmented-control look as the time panel's
    Focus/Hours/Stats tabs (.seg), just under a different parent */
 .cal-view-seg{margin:0 0 14px}
-/* B37: Week view - 7 columns, each a compact version of the month view's day-list rows */
-.cal-week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;align-items:start}
-.cal-weekcol{min-width:0;display:flex;flex-direction:column;border-radius:9px;background:var(--hover);overflow:hidden}
-.cal-weekcol.today{box-shadow:inset 0 0 0 2px var(--accent)}
+/* B38: Week view header row - day-of-week/date buttons, one per column, aligned above the
+   vertical hourly grid below (shares the same gutter width so columns line up) */
+.cal-week-headrow{display:flex;align-items:flex-start}
+.cal-week-gutter{flex:none;width:54px;position:relative}
+.cal-week-gutter.lbl{padding-top:9px;font:600 10px/1 var(--font-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;text-align:right;padding-right:6px}
+.cal-week-headrow .cal-weekcol-head{flex:1;min-width:0}
 .cal-weekcol-head{display:flex;flex-direction:column;align-items:center;gap:1px;padding:8px 2px 6px;border:0;background:none;color:var(--ink);cursor:pointer;font:600 10.5px/1 var(--font-mono);text-transform:uppercase;letter-spacing:.04em}
 .cal-weekcol-head .num{font:650 15px/1.3 var(--font-display);text-transform:none}
-.cal-weekcol.today .cal-weekcol-head .num{color:var(--accent)}
-.cal-weekcol.sel .cal-weekcol-head{background:var(--card)}
-.cal-weekcol-body{flex:1;min-height:40px;padding:0 2px 4px}
-.cal-weekcol-body .cal-row{min-height:0;padding:5px 2px;gap:0;flex-direction:column;align-items:stretch;border-bottom:1px solid var(--line)}
-.cal-weekcol-body .cal-open{padding:1px 0;gap:2px;flex-direction:column;align-items:flex-start}
-.cal-weekcol-body .cal-time{width:auto;font-size:10px}
-.cal-weekcol-body .t small{display:none}
-.cal-weekcol-body .empty{padding:8px 2px;font-size:11.5px}
+.cal-weekcol-head.today .num{color:var(--accent)}
+.cal-weekcol-head.sel{background:var(--card);border-radius:8px}
+/* B38: all-day row - one compact chip per all-day item, per column */
+.cal-week-alldayrow{padding:4px 0 8px;border-bottom:1px solid var(--line);align-items:stretch}
+.cal-week-allday-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;padding:0 3px}
+.cal-week-allday-chip{display:block;width:100%;padding:3px 6px;border:0;border-left:3px solid var(--c);border-radius:6px;background:color-mix(in srgb,var(--c) 16%,var(--card));color:var(--ink);font:600 10px/1.3 var(--font-display);text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+/* B38: Week view's own vertical 00:00-23:00 grid - a shared hour-label gutter (absolutely
+   positioned labels, same top math as Day's blocks) plus 7 day columns, each a mini Day grid
+   reusing .cal-block verbatim (it's just position:absolute left/right:0, works in any column) */
+.cal-weekscroll{max-height:58vh;overflow-y:auto;margin-top:10px;border-top:1px solid var(--line)}
+.cal-week-hourly{display:flex;position:relative}
+.cal-week-hour-label{position:absolute;right:6px;width:44px;font:500 10.5px/1 var(--font-mono);color:var(--muted);text-align:right}
+.cal-week-cols{flex:1;min-width:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.cal-week-col{position:relative;min-width:0;border-left:1px solid var(--line)}
+.cal-week-col.today{background:color-mix(in srgb,var(--accent) 5%,transparent)}
+.cal-week-hourrow{height:56px;border-top:1px solid var(--line)}
+.cal-week-hourrow:first-child{border-top:0}
+.cal-week-blocks{position:absolute;top:0;left:2px;right:2px;bottom:0}
+.cal-week-blocks .cal-block b{font-size:10.5px}
+.cal-week-blocks .cal-block small{display:none}
 /* B37: Day (with hours) view - an all-day header strip above a 00:00-23:00 scrollable timeline */
 .cal-allday{display:flex;align-items:flex-start;gap:10px;padding:4px 0 10px;border-bottom:1px solid var(--line)}
 .cal-allday .lbl{flex:none;padding-top:9px;font:600 11px/1 var(--font-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
@@ -543,7 +557,7 @@ html.has-dock .toast{bottom:calc(var(--dock-h,60px) + 26px + env(safe-area-inset
   .cal-day{min-height:96px}
   .cal-items i{height:auto;padding:1px 6px;border-radius:4px;background:color-mix(in srgb,var(--c) 16%,transparent);color:color-mix(in srgb,var(--c) 70%,var(--ink));font:500 11.5px/1.4 var(--font-ui)}
   .cal-items i.ev{background:var(--c);color:#fff}
-  .cal-week{gap:10px}
+  .cal-weekscroll{max-height:66vh}
   .cal-dayscroll{max-height:66vh}
 }
 /* notification status */
@@ -4472,20 +4486,40 @@ function calMonthHTML() {
     + calDayActionsHTML(ui.cal.day)
     + dayRowsHTML(dayItems);
 }
-/* B37 §1: 7-column Week view (Monday-Sunday of the week containing ui.cal.day) - each column
-   reuses dayRowsHTML() for its items, exactly like the month view's day list below the grid */
+/* B38: Week view, vertical like Day (user feedback - horizontal per-day lists felt wrong) - one
+   shared 00:00-23:00 hour-label gutter on the left, 7 day columns to its right, each a mini
+   version of Day's own hourly grid (same top/height math, same .cal-block markup - reused
+   verbatim, it's generic enough to drop into any relatively-positioned column). Day headers +
+   all-day items sit above the scrollable hourly area, same split Day uses. */
 function calWeekHTML() {
   const days = calWeekOf(ui.cal.day), today = isoDay(0);
   const weekdayShort = Array.from({length: 7}, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(undefined, {weekday: 'short'}));
   const title = `${fmtDate(parseISO(days[0]))} – ${fmtDate(parseISO(days[6]))}`;
-  const cols = days.map((key, i) => {
+  const perDay = days.map((key, i) => {
     const items = itemsOn(key);
-    return `<div class="cal-weekcol${key === today ? ' today' : ''}${key === ui.cal.day ? ' sel' : ''}">`
-      + `<button type="button" class="cal-weekcol-head" data-day="${key}" aria-label="${fmtDay(key)}, ${items.length} items"><span class="wd">${weekdayShort[i]}</span><span class="num">${new Date(parseISO(key)).getDate()}</span></button>`
-      + `<div class="cal-weekcol-body">${dayRowsHTML(items, 'Nothing')}</div></div>`;
+    return {key, i, allDay: items.filter(it => it.allDay), timed: items.filter(it => !it.allDay)};
+  });
+  const heads = perDay.map(d => `<button type="button" class="cal-weekcol-head${d.key === today ? ' today' : ''}${d.key === ui.cal.day ? ' sel' : ''}" data-day="${d.key}" aria-label="${fmtDay(d.key)}, ${d.allDay.length + d.timed.length} items"><span class="wd">${weekdayShort[d.i]}</span><span class="num">${new Date(parseISO(d.key)).getDate()}</span></button>`).join('');
+  const alldayCols = perDay.map(d => `<div class="cal-week-allday-col" data-day="${d.key}">${d.allDay.map(it => `<button type="button" class="cal-week-allday-chip" data-c="open" data-kind="${it.kind}" data-id="${it.id}" style="--c:${it.color}">${esc(it.title)}</button>`).join('')}</div>`).join('');
+  const hourLabels = Array.from({length: 24}, (_, h) => `<span class="cal-week-hour-label" style="top:${h * CAL_HOUR_PX}px">${pad(h)}:00</span>`).join('');
+  const hourRow = Array.from({length: 24}, () => `<div class="cal-week-hourrow"></div>`).join('');
+  const cols = perDay.map(d => {
+    const blocks = d.timed.map(it => {
+      const [hh, mm] = it.time.split(':').map(Number);
+      const startMin = hh * 60 + mm;
+      let durMin = 30;
+      if (it.kind === 'event' && it.end) { const [eh, em] = it.end.split(':').map(Number); durMin = Math.max(24, (eh * 60 + em) - startMin); }
+      const top = startMin / 60 * CAL_HOUR_PX, h = Math.max(20, durMin / 60 * CAL_HOUR_PX);
+      return `<button type="button" class="cal-block${it.done ? ' done' : ''}${it.ghost ? ' ghost' : ''}" data-c="open" data-kind="${it.kind}" data-id="${it.id}" style="top:${top}px;height:${h}px;--c:${it.color}"><b>${esc(it.title)}</b><small>${esc(it.time)}</small></button>`;
+    }).join('');
+    return `<div class="cal-week-col${d.key === today ? ' today' : ''}" data-day="${d.key}">${hourRow}<div class="cal-week-blocks">${blocks}</div></div>`;
   }).join('');
   return calHeadHTML(title, 'Previous week', 'Next week')
-    + `<div class="cal-week" role="grid">${cols}</div>`
+    + `<div class="cal-week-headrow"><span class="cal-week-gutter"></span>${heads}</div>`
+    + `<div class="cal-week-headrow cal-week-alldayrow"><span class="cal-week-gutter lbl">All day</span>${alldayCols}</div>`
+    + `<div class="cal-weekscroll"><div class="cal-week-hourly" style="height:${24 * CAL_HOUR_PX}px">`
+      + `<div class="cal-week-gutter hours">${hourLabels}</div>`
+      + `<div class="cal-week-cols">${cols}</div></div></div>`
     + calDayActionsHTML(ui.cal.day);
 }
 /* B37 §1/§4: Day (with hours) view - a single day's 00:00-23:00 vertical timeline. All-day items
@@ -4551,14 +4585,17 @@ function openCalendar(day) {
           grid.before(wrap); wrap.append(grid, side);
         }
       }
-      if (ui.cal.view === 'day') {
-        /* B37: default scroll position - near now if today, else near the first timed item, else
-           a sensible 8am default */
-        const dsc = $('.cal-dayscroll', inner);
+      if (ui.cal.view === 'day' || ui.cal.view === 'week') {
+        /* B37/B38: default scroll position for either hourly view - near now if today's in view,
+           else near the first timed item (across the whole visible week, for Week), else a
+           sensible 8am default */
+        const dsc = $(ui.cal.view === 'day' ? '.cal-dayscroll' : '.cal-weekscroll', inner);
         if (dsc) {
+          const today = isoDay(0);
+          const daysInView = ui.cal.view === 'day' ? [ui.cal.day] : calWeekOf(ui.cal.day);
           let mins = 8 * 60;
-          if (ui.cal.day === isoDay(0)) { const now = new Date(); mins = now.getHours() * 60 + now.getMinutes(); }
-          else { const first = itemsOn(ui.cal.day).find(it => !it.allDay); if (first) { const [hh, mm] = first.time.split(':').map(Number); mins = hh * 60 + mm; } }
+          if (daysInView.includes(today)) { const now = new Date(); mins = now.getHours() * 60 + now.getMinutes(); }
+          else { const first = daysInView.flatMap(itemsOn).find(it => !it.allDay); if (first) { const [hh, mm] = first.time.split(':').map(Number); mins = hh * 60 + mm; } }
           dsc.scrollTop = Math.max(0, mins / 60 * CAL_HOUR_PX - dsc.clientHeight / 3);
         }
       } else {
